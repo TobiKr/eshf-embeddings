@@ -106,7 +106,6 @@ jobs:
             --name $BLOB_NAME \
             --permissions r \
             --expiry $EXPIRY \
-            --auth-mode login \
             --output tsv)
 
           # Construct the full package URL
