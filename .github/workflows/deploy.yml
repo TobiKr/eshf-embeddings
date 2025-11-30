@@ -39,13 +39,100 @@ jobs:
       - name: Run tests
         run: npm test -- unit
 
-      - name: Deploy to Azure Functions
-        uses: Azure/functions-action@v1
+      - name: Create deployment package
+        run: |
+          echo "Creating deployment package..."
+          mkdir -p deploy
+
+          # Copy necessary files to deploy directory
+          cp -r dist node_modules host.json package.json deploy/
+
+          # Create zip package
+          cd deploy
+          zip -r ../function-app.zip .
+          cd ..
+
+          echo "✅ Deployment package created: function-app.zip"
+          ls -lh function-app.zip
+
+      - name: Login to Azure
+        uses: azure/login@v2
         with:
-          app-name: func-eshf-embeddings-${{ github.event.inputs.environment || 'dev' }}
-          package: .
-          respect-funcignore: true
-          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Upload package to Azure Storage
+        run: |
+          # Set variables
+          STORAGE_ACCOUNT="${{ secrets.AZURE_STORAGE_ACCOUNT }}"
+          CONTAINER_NAME="deployments"
+          BLOB_NAME="eshf-embeddings-${{ github.event.inputs.environment || 'dev' }}-${{ github.sha }}.zip"
+
+          echo "Uploading package to storage account: $STORAGE_ACCOUNT"
+
+          # Create container if it doesn't exist
+          az storage container create \
+            --name $CONTAINER_NAME \
+            --account-name $STORAGE_ACCOUNT \
+            --auth-mode login \
+            --only-show-errors || true
+
+          # Upload the package
+          az storage blob upload \
+            --account-name $STORAGE_ACCOUNT \
+            --container-name $CONTAINER_NAME \
+            --name $BLOB_NAME \
+            --file function-app.zip \
+            --auth-mode login \
+            --overwrite \
+            --only-show-errors
+
+          echo "✅ Package uploaded successfully"
+
+      - name: Generate SAS URL and deploy
+        run: |
+          # Set variables
+          STORAGE_ACCOUNT="${{ secrets.AZURE_STORAGE_ACCOUNT }}"
+          CONTAINER_NAME="deployments"
+          BLOB_NAME="eshf-embeddings-${{ github.event.inputs.environment || 'dev' }}-${{ github.sha }}.zip"
+          FUNCTION_APP="func-eshf-embeddings-${{ github.event.inputs.environment || 'dev' }}"
+          RESOURCE_GROUP="${{ secrets.AZURE_RESOURCE_GROUP }}"
+
+          # Generate SAS token with 1 year expiry
+          EXPIRY=$(date -u -d "1 year" '+%Y-%m-%dT%H:%MZ')
+
+          SAS_TOKEN=$(az storage blob generate-sas \
+            --account-name $STORAGE_ACCOUNT \
+            --container-name $CONTAINER_NAME \
+            --name $BLOB_NAME \
+            --permissions r \
+            --expiry $EXPIRY \
+            --auth-mode login \
+            --as-user \
+            --output tsv)
+
+          # Construct the full package URL
+          PACKAGE_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/${BLOB_NAME}?${SAS_TOKEN}"
+
+          echo "Deploying function app: $FUNCTION_APP"
+
+          # Update function app settings with package URL
+          az functionapp config appsettings set \
+            --name $FUNCTION_APP \
+            --resource-group $RESOURCE_GROUP \
+            --settings WEBSITE_RUN_FROM_PACKAGE="$PACKAGE_URL" \
+            --output none
+
+          echo "✅ Function app configured to run from package"
+
+          # Restart function app to apply changes
+          az functionapp restart \
+            --name $FUNCTION_APP \
+            --resource-group $RESOURCE_GROUP \
+            --output none
+
+          echo "✅ Function app restarted"
 
       - name: Test deployment
         run: |
