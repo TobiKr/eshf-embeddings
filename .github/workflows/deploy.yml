@@ -104,7 +104,7 @@ jobs:
             --account-name $STORAGE_ACCOUNT \
             --container-name $CONTAINER_NAME \
             --auth-mode key \
-            --account-key ${{ AZURE_STORAGE_ACCOUNT_KEY }} \
+            --account-key ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }} \
             --name $BLOB_NAME \
             --permissions r \
             --expiry $EXPIRY \
