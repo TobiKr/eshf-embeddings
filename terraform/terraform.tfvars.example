@@ -1,0 +1,81 @@
+# Example Terraform Variables for ESHF Embeddings Pipeline
+# Copy this file to terraform.tfvars and fill in your actual values
+# cp terraform.tfvars.example terraform.tfvars
+
+# =============================================================================
+# Azure Configuration
+# =============================================================================
+
+# Azure subscription ID
+subscription_id = "your-azure-subscription-id"
+
+# Environment name: dev, staging, or prod
+environment = "dev"
+
+# Azure region for all resources
+location = "westeurope"
+
+# =============================================================================
+# Cosmos DB Configuration
+# =============================================================================
+
+# Cosmos DB endpoint URL
+cosmos_endpoint = "https://your-cosmos-account.documents.azure.com:443/"
+
+# Cosmos DB primary key (REQUIRED)
+# Find in Azure Portal: Cosmos DB Account > Keys > Primary Key
+cosmos_key = "your-cosmos-db-primary-key"
+
+# Cosmos DB database name
+cosmos_database = "eshf-forum"
+
+# Cosmos DB container name
+cosmos_container = "posts"
+
+# =============================================================================
+# OpenAI Configuration
+# =============================================================================
+
+# OpenAI API key (REQUIRED)
+# Get from: https://platform.openai.com/api-keys
+openai_api_key = "sk-proj-your-openai-api-key"
+
+# OpenAI embedding model
+# Options: text-embedding-3-small (1536 dims), text-embedding-3-large (3072 dims)
+openai_model = "text-embedding-3-large"
+
+# =============================================================================
+# Pinecone Configuration
+# =============================================================================
+
+# Pinecone API key (REQUIRED)
+# Get from: https://app.pinecone.io/ > API Keys
+pinecone_api_key = "pcsk-your-pinecone-api-key"
+
+# Pinecone index host URL
+# Get from: https://app.pinecone.io/ > Your Index > Connect
+pinecone_host = "https://your-index.svc.pinecone.io"
+
+# Pinecone index name
+pinecone_index = "eshf"
+
+# =============================================================================
+# Processing Configuration
+# =============================================================================
+
+# Number of posts to process in each discovery batch
+# Recommendation: Start with 10 for testing, increase to 50-100 for production
+batch_size = "10"
+
+# =============================================================================
+# Resource Tags
+# =============================================================================
+
+# Tags to apply to all Azure resources
+tags = {
+  Project     = "ESHF-Embeddings"
+  ManagedBy   = "Terraform"
+  Environment = "dev"
+  Owner       = "YourName"
+  CostCenter  = "Engineering"
+}

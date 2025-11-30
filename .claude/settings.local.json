@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm start)",
+      "Bash(pkill:*)",
+      "Bash(curl:*)",
+      "Bash(npm test:*)",
+      "Bash(findstr:*)",
+      "Bash(dir distfunctions)",
+      "Bash(dir /s /b dist)",
+      "Bash(func --version:*)",
+      "Bash(node --version:*)",
+      "Bash(func start:*)",
+      "Bash(azurite:*)",
+      "Bash(cat:*)",
+      "Bash(az --version:*)",
+      "Bash(az account show:*)",
+      "Bash(az functionapp list:*)",
+      "Bash(dir:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

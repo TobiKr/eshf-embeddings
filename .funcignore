@@ -1,0 +1,62 @@
+# Source files (only deploy compiled dist/)
+src/
+*.ts
+tsconfig.json
+
+# Tests
+tests/
+coverage/
+*.test.ts
+*.test.js
+jest.config.js
+
+# Build artifacts
+*.js.map
+*.d.ts
+*.d.ts.map
+
+# IDE and editor files
+.git*
+.vscode/
+.claude/
+.ralph/
+.idea/
+.mcp.json
+*.swp
+*.swo
+*~
+
+# Documentation and specs
+*.md
+!README.md
+specs/
+ARCHITECTURE.md
+CLAUDE.md
+
+# Configuration files
+.editorconfig
+.prettierrc
+.eslintrc
+tsconfig.json
+
+# Terraform
+terraform/
+
+# Node.js
+#node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local development
+local.settings.json
+azurite/
+*.azurite/
+.env
+.env.*
+__queuestorage__/
+__azurite*
+
+# Temporary files
+tmp/
+temp/
