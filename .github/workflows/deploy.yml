@@ -103,6 +103,8 @@ jobs:
           SAS_TOKEN=$(az storage blob generate-sas \
             --account-name $STORAGE_ACCOUNT \
             --container-name $CONTAINER_NAME \
+            --auth-mode key \
+            --account-key ${{ AZURE_STORAGE_ACCOUNT_KEY }} \
             --name $BLOB_NAME \
             --permissions r \
             --expiry $EXPIRY \
