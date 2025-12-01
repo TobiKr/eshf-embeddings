@@ -40,4 +40,7 @@ export interface EmbeddingResult {
 
   /** Chunk metadata (present if post was chunked, undefined for single-chunk posts) */
   chunkMetadata?: ChunkMetadata;
+
+  /** The actual post text (or chunk text if chunked) */
+  postText: string;
 }

@@ -46,8 +46,11 @@ async function pineconeUploaderHandler(
     // Create Pinecone vector ID (use postId as vector ID)
     const vectorId = message.postId;
 
-    // Format metadata for Pinecone
-    const metadata = formatMetadataFromPostMetadata(message.metadata);
+    // Format metadata for Pinecone (include postText)
+    const metadata = formatMetadataFromPostMetadata(
+      message.metadata,
+      message.postText
+    );
 
     // Create Pinecone vector
     const vector: PineconeVector = {

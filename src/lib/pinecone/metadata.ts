@@ -50,12 +50,12 @@ export function formatMetadata(post: ForumPost): RecordMetadata {
  * Converts PostMetadata to Pinecone metadata format
  *
  * @param metadata - The post metadata to convert
- * @param contentPreview - Optional content preview
+ * @param postText - Optional post text (or chunk text if chunked)
  * @returns Metadata object suitable for Pinecone storage
  */
 export function formatMetadataFromPostMetadata(
   metadata: PostMetadata,
-  contentPreview?: string
+  postText?: string
 ): RecordMetadata {
   const pineconeMetadata: RecordMetadata = {
     postId: metadata.postId,
@@ -71,8 +71,8 @@ export function formatMetadataFromPostMetadata(
     isOriginalPost: metadata.isOriginalPost,
   };
 
-  if (contentPreview) {
-    pineconeMetadata.contentPreview = contentPreview;
+  if (postText) {
+    pineconeMetadata.postText = postText;
   }
 
   return pineconeMetadata;

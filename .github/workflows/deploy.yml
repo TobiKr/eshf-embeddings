@@ -149,13 +149,3 @@ jobs:
           else
             echo "⚠️  Function app may still be starting up (Status: $STATUS_CODE)"
           fi
-
-      - name: Deployment summary
-        run: |
-          echo "### Deployment Summary 🚀" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment:** ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Function App:** func-eshf-embeddings-${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **URL:** https://func-eshf-embeddings-${{ github.event.inputs.environment || 'dev' }}.azurewebsites.net" >> $GITHUB_STEP_SUMMARY
-          echo "- **Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

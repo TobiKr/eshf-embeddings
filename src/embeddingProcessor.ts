@@ -98,6 +98,7 @@ async function embeddingProcessorHandler(
         metadata: message.metadata,
         timestamp: new Date().toISOString(),
         chunkMetadata,
+        postText: chunk.text,
       };
 
       // Enqueue to embeddings-ready queue
