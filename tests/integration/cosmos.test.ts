@@ -8,8 +8,8 @@
 import {
   queryUnprocessedPosts,
   getProcessingStats,
-  testConnection,
 } from '../../src/lib/cosmos/queries';
+import { testConnection } from '../../src/lib/cosmos/client';
 
 describe('Cosmos DB Integration Tests', () => {
   beforeAll(async () => {

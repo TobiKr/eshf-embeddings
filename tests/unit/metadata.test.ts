@@ -110,17 +110,17 @@ describe('Pinecone Metadata Formatting', () => {
       expect(metadata.author).toBe('Hausbauer2025');
     });
 
-    it('should include content preview if provided', () => {
-      const preview = 'This is a preview';
-      const metadata = formatMetadataFromPostMetadata(sampleMetadata, preview);
+    it('should include postText if provided', () => {
+      const postText = 'This is the post text';
+      const metadata = formatMetadataFromPostMetadata(sampleMetadata, postText);
 
-      expect(metadata.contentPreview).toBe(preview);
+      expect(metadata.postText).toBe(postText);
     });
 
-    it('should not include content preview if not provided', () => {
+    it('should not include postText if not provided', () => {
       const metadata = formatMetadataFromPostMetadata(sampleMetadata);
 
-      expect(metadata.contentPreview).toBeUndefined();
+      expect(metadata.postText).toBeUndefined();
     });
   });
 

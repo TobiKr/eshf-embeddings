@@ -83,13 +83,13 @@ export async function upsertVectors(vectors: PineconeVector[]): Promise<void> {
  *
  * @param embedding - The query embedding vector
  * @param topK - Number of results to return (default: 10)
- * @param filter - Optional metadata filter
+ * @param filter - Optional metadata filter (Pinecone filter syntax)
  * @returns Query results with scores and metadata
  */
 export async function queryVectors(
   embedding: number[],
   topK = 10,
-  filter?: RecordMetadata
+  filter?: Record<string, any>
 ): Promise<any> {
   try {
     const index = getPineconeIndex();
