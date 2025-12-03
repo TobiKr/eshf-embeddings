@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>energiesparhaus-Bot</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <!-- Password Modal -->
+    <div id="passwordModal" class="modal">
+        <div class="modal-content">
+            <h2>Zugang zum energiesparhaus-Bot</h2>
+            <p>Bitte geben Sie das Passwort ein:</p>
+            <input type="password" id="passwordInput" placeholder="Passwort" />
+            <button id="passwordSubmit">Anmelden</button>
+            <div id="passwordError" class="error"></div>
+        </div>
+    </div>
+
+    <!-- Main Chat Interface -->
+    <div id="chatContainer" class="hidden">
+        <div class="header">
+            <h1>energiesparhaus-Bot</h1>
+            <p class="subtitle">Ihr KI-Assistent für energieeffizientes Bauen und Sanieren</p>
+        </div>
+
+        <div id="chatMessages" class="chat-messages">
+            <div class="welcome-message">
+                <p><strong>Willkommen beim energiesparhaus-Bot!</strong></p>
+                <p>Ich kann Ihnen Fragen zu Themen aus dem energiesparhaus.at Forum beantworten.</p>
+                <p>Stellen Sie mir eine Frage zu Wärmepumpen, Dämmung, Heizung, Photovoltaik und mehr!</p>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <textarea
+                id="messageInput"
+                placeholder="Ihre Frage eingeben..."
+                rows="3"
+            ></textarea>
+            <button id="sendButton">Senden</button>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>

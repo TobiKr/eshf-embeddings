@@ -18,7 +18,8 @@
       "Bash(az --version:*)",
       "Bash(az account show:*)",
       "Bash(az functionapp list:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []
