@@ -23,6 +23,35 @@ export interface EnvironmentConfig {
 
   // Processing Configuration
   BATCH_SIZE: string;
+
+  // Jina AI Reranker Configuration
+  RERANKER_ENABLED?: string;
+  JINA_API_KEY?: string;
+  JINA_RERANKER_MODEL?: string;
+  RERANKER_MIN_SCORE?: string;
+  RERANKER_ADAPTIVE_TOPK_MIN?: string;
+  RERANKER_ADAPTIVE_TOPK_MAX?: string;
+  RERANKER_SCORE_GAP_THRESHOLD?: string;
+  RERANKER_TIMEOUT_MS?: string;
+  RERANKER_MAX_RETRIES?: string;
+}
+
+/**
+ * Reranker configuration interface
+ */
+export interface RerankerConfig {
+  enabled: boolean;
+  apiKey: string;
+  model: string;
+  minScore: number;
+  timeout: number;
+  maxRetries: number;
+  adaptiveTopK: {
+    enabled: boolean;
+    min: number;
+    max: number;
+    scoreGapThreshold: number;
+  };
 }
 
 /**

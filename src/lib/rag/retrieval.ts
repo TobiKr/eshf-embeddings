@@ -1,11 +1,12 @@
 /**
  * RAG retrieval logic for semantic search
  *
- * Handles embedding generation and vector database queries
+ * Handles embedding generation, vector database queries, and semantic reranking
  */
 
 import { generateEmbedding } from '../openai/embeddings';
 import { queryVectors } from '../pinecone/upsert';
+import { rerankChunks, getRerankerConfigFromEnv } from './reranker';
 import * as logger from '../utils/logger';
 
 // Configuration
@@ -13,8 +14,14 @@ const DEFAULT_TOP_K = 30; // Retrieve top 30 chunks for detailed context
 
 interface RetrievalResult {
   success: boolean;
-  chunks?: any[];
+  chunks?: Array<any & { rerankerScore?: number }>;
   error?: string;
+  rerankingMetrics?: {
+    originalCount: number;
+    filteredCount: number;
+    finalCount: number;
+    rerankingLatency: number;
+  };
 }
 
 /**
@@ -61,14 +68,36 @@ export async function retrieveContext(
       };
     }
 
-    logger.info('Retrieval completed successfully', {
+    logger.info('Vector search completed', {
       chunksRetrieved: searchResults.matches.length,
       topScore: searchResults.matches[0]?.score,
     });
 
+    // Step 3: Rerank results using Jina AI cross-encoder
+    const rerankerConfig = getRerankerConfigFromEnv();
+    const rerankResult = await rerankChunks(query, searchResults.matches, rerankerConfig);
+
+    logger.info('Retrieval completed with reranking', {
+      originalChunks: searchResults.matches.length,
+      finalChunks: rerankResult.chunks.length,
+      rerankingLatency: rerankResult.metrics.rerankingLatency,
+      topRerankerScore: rerankResult.chunks[0]?.rerankerScore,
+      filteredCount: rerankResult.metrics.filteredCount,
+    });
+
+    // Return reranked chunks (extract the chunk objects and add reranker scores)
     return {
       success: true,
-      chunks: searchResults.matches,
+      chunks: rerankResult.chunks.map(sc => ({
+        ...sc.chunk,
+        rerankerScore: sc.rerankerScore, // Add reranker score to metadata
+      })),
+      rerankingMetrics: {
+        originalCount: rerankResult.metrics.originalCount,
+        filteredCount: rerankResult.metrics.filteredCount,
+        finalCount: rerankResult.metrics.finalCount,
+        rerankingLatency: rerankResult.metrics.rerankingLatency,
+      },
     };
   } catch (error) {
     logger.error('Error during retrieval', { error });
