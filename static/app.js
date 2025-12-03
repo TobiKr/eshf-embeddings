@@ -72,7 +72,7 @@ async function handlePasswordSubmit() {
     }
 
     try {
-        const response = await fetch('/api/auth', {
+        const response = await fetch('/auth', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -164,7 +164,7 @@ async function handleSendMessage() {
  * Stream chat response from API
  */
 async function streamChatResponse(message, loadingMessageId) {
-    const response = await fetch('/api/chat', {
+    const response = await fetch('/chat', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
