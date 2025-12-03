@@ -5,6 +5,7 @@ export interface EnvironmentConfig {
   // Azure Functions
   AzureWebJobsStorage: string;
   FUNCTIONS_WORKER_RUNTIME: string;
+  APPLICATIONINSIGHTS_CONNECTION_STRING?: string;
 
   // Cosmos DB
   COSMOS_ENDPOINT: string;

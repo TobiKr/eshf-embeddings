@@ -11,6 +11,7 @@ import { formatMetadataFromPostMetadata } from './lib/pinecone/metadata';
 import { updateProcessedStatus } from './lib/cosmos/queries';
 import { EmbeddingResult } from './types/queue';
 import * as logger from './lib/utils/logger';
+import { trackEvent, trackMetric } from './lib/utils/telemetry';
 
 const INPUT_QUEUE = 'embeddings-ready';
 
@@ -81,11 +82,35 @@ async function pineconeUploaderHandler(
       vectorId,
       durationMs: duration,
     });
+
+    // Track success event and metrics
+    trackEvent(
+      'PineconeUploader.Success',
+      {
+        postId: message.postId,
+        vectorId,
+        category: message.metadata.category || 'unknown',
+      },
+      {
+        embeddingDimensions: message.embedding.length,
+        durationMs: duration,
+      }
+    );
+
+    trackMetric('PineconeUploader.ProcessingTime', duration, {
+      category: message.metadata.category || 'unknown',
+    });
   } catch (err) {
     const error = err as Error;
 
     logger.logError('PineconeUploader failed', error, {
       functionName: context.functionName,
+    });
+
+    // Track failure event
+    trackEvent('PineconeUploader.Failure', {
+      errorType: error.name,
+      errorMessage: error.message,
     });
 
     // Re-throw to trigger retry mechanism

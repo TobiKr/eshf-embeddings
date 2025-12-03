@@ -5,6 +5,7 @@
 import { getOpenAIClient, getEmbeddingModel } from './client';
 import { RateLimitError, EmbeddingError } from '../utils/errors';
 import * as logger from '../utils/logger';
+import { trackDependency, trackEvent, trackMetric } from '../utils/telemetry';
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000; // 1 second
@@ -31,6 +32,7 @@ export async function generateEmbedding(
 ): Promise<number[]> {
   const client = getOpenAIClient();
   const model = getEmbeddingModel();
+  const startTime = Date.now();
 
   try {
     logger.debug('Generating embedding', {
@@ -46,15 +48,37 @@ export async function generateEmbedding(
     });
 
     const embedding = response.data[0].embedding;
+    const duration = Date.now() - startTime;
 
     logger.debug('Embedding generated successfully', {
       dimensions: embedding.length,
       model,
     });
 
+    // Track successful API call
+    trackDependency(
+      'OpenAI.Embeddings',
+      'OpenAI API',
+      `model:${model}, contentLength:${content.length}`,
+      duration,
+      true,
+      200,
+      {
+        model,
+        retryCount: retryCount.toString(),
+        dimensions: embedding.length.toString(),
+      }
+    );
+
+    trackMetric('OpenAI.EmbeddingLatency', duration, {
+      model,
+      retryAttempt: retryCount.toString(),
+    });
+
     return embedding;
   } catch (err) {
     const error = err as any;
+    const duration = Date.now() - startTime;
 
     // Check if it's a rate limit error (429 status code)
     if (error.status === 429 || error.code === 'rate_limit_exceeded') {
@@ -68,6 +92,27 @@ export async function generateEmbedding(
         maxRetries: MAX_RETRIES,
       });
 
+      // Track rate limit event
+      trackEvent('OpenAI.RateLimitHit', {
+        retryCount: retryCount.toString(),
+        willRetry: (retryCount < MAX_RETRIES).toString(),
+      });
+
+      // Track failed dependency call
+      trackDependency(
+        'OpenAI.Embeddings',
+        'OpenAI API',
+        `model:${model}, contentLength:${content.length}`,
+        duration,
+        false,
+        429,
+        {
+          model,
+          retryCount: retryCount.toString(),
+          errorCode: 'rate_limit_exceeded',
+        }
+      );
+
       if (retryCount < MAX_RETRIES) {
         logger.info(`Retrying after ${retryAfter}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
         await sleep(retryAfter);
@@ -78,6 +123,11 @@ export async function generateEmbedding(
           retryAfter
         );
         logger.logError('Max retries exceeded for rate limit', rateLimitError);
+
+        trackEvent('OpenAI.MaxRetriesExceeded', {
+          retryCount: retryCount.toString(),
+        });
+
         throw rateLimitError;
       }
     }
@@ -91,6 +141,23 @@ export async function generateEmbedding(
       errorStatus: error.status,
       errorCode: error.code,
     });
+
+    // Track failed dependency call
+    trackDependency(
+      'OpenAI.Embeddings',
+      'OpenAI API',
+      `model:${model}, contentLength:${content.length}`,
+      duration,
+      false,
+      error.status || 0,
+      {
+        model,
+        retryCount: retryCount.toString(),
+        errorCode: error.code || 'unknown',
+        errorStatus: error.status?.toString() || 'unknown',
+      }
+    );
+
     throw embeddingError;
   }
 }

@@ -6,6 +6,10 @@
  * files causes their app.timer(), app.storageQueue(), etc. calls to register.
  */
 
+// Initialize Application Insights before anything else
+import { initializeTelemetry } from './lib/utils/telemetry';
+initializeTelemetry();
+
 // Import all function files to trigger their registration
 
 // Existing embedding pipeline functions

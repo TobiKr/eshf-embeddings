@@ -15,6 +15,7 @@ import { PostQueueMessage, EmbeddingResult, ChunkMetadata } from './types/queue'
 import { isRateLimitError } from './lib/utils/errors';
 import { chunkText } from './lib/chunking';
 import * as logger from './lib/utils/logger';
+import { trackEvent, trackMetric } from './lib/utils/telemetry';
 
 const INPUT_QUEUE = 'posts-to-process';
 const OUTPUT_QUEUE = 'embeddings-ready';
@@ -121,6 +122,28 @@ async function embeddingProcessorHandler(
       chunksProcessed: chunkingResult.chunks.length,
       durationMs: duration,
     });
+
+    // Track success event and metrics
+    trackEvent(
+      'EmbeddingProcessor.Success',
+      {
+        postId: message.postId,
+        category: message.metadata.category || 'unknown',
+        wasChunked: chunkingResult.wasChunked.toString(),
+      },
+      {
+        chunksProcessed: chunkingResult.chunks.length,
+        totalTokens: chunkingResult.totalTokens,
+        durationMs: duration,
+      }
+    );
+
+    trackMetric('EmbeddingProcessor.ChunksPerPost', chunkingResult.chunks.length, {
+      category: message.metadata.category || 'unknown',
+    });
+    trackMetric('EmbeddingProcessor.ProcessingTime', duration, {
+      chunksProcessed: chunkingResult.chunks.length.toString(),
+    });
   } catch (err) {
     const error = err as Error;
 
@@ -130,6 +153,12 @@ async function embeddingProcessorHandler(
         error: error.message,
         functionName: context.functionName,
       });
+
+      // Track rate limit event
+      trackEvent('EmbeddingProcessor.RateLimitError', {
+        errorMessage: error.message,
+      });
+
       // Re-throw to trigger Azure Functions retry mechanism
       throw error;
     }
@@ -138,6 +167,13 @@ async function embeddingProcessorHandler(
     logger.logError('EmbeddingProcessor failed', error, {
       functionName: context.functionName,
     });
+
+    // Track failure event
+    trackEvent('EmbeddingProcessor.Failure', {
+      errorType: error.name,
+      errorMessage: error.message,
+    });
+
     throw error;
   }
 }
