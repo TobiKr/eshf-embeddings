@@ -103,7 +103,7 @@ export async function webServer(
 app.http('root', {
   methods: ['GET'],
   authLevel: 'anonymous',
-  route: '',
+  route: '/',
   handler: webServer,
 });
 

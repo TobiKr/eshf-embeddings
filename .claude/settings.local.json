@@ -19,7 +19,9 @@
       "Bash(az account show:*)",
       "Bash(az functionapp list:*)",
       "Bash(dir:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)"
     ],
     "deny": [],
     "ask": []
