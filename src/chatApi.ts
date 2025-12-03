@@ -7,11 +7,11 @@
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import Anthropic from '@anthropic-ai/sdk';
-import { isAuthenticated, unauthorizedResponse } from '../lib/auth/passwordAuth';
-import { retrieveContext } from '../lib/rag/retrieval';
-import { getSystemPrompt, formatContextFromChunks, formatSourcesForDisplay } from '../lib/rag/prompts';
-import { ChatRequest, StreamChunk } from '../types/chat';
-import * as logger from '../lib/utils/logger';
+import { isAuthenticated, unauthorizedResponse } from './lib/auth/passwordAuth';
+import { retrieveContext } from './lib/rag/retrieval';
+import { getSystemPrompt, formatContextFromChunks, formatSourcesForDisplay } from './lib/rag/prompts';
+import { ChatRequest, StreamChunk } from './types/chat';
+import * as logger from './lib/utils/logger';
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({

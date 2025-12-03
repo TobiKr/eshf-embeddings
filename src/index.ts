@@ -7,7 +7,15 @@
  */
 
 // Import all function files to trigger their registration
+
+// Existing embedding pipeline functions
 import './postDiscovery';
 import './embeddingProcessor';
 import './pineconeUploader';
 import './manualProcessor';
+
+// New chat/RAG functions
+import './chatApi';
+import './authApi';
+import './webServer';
+import './searchEndpoint';

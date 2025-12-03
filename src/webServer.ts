@@ -7,7 +7,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as logger from '../lib/utils/logger';
+import * as logger from './lib/utils/logger';
 
 // Content type mapping
 const CONTENT_TYPES: Record<string, string> = {

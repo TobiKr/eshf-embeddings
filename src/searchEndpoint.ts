@@ -5,9 +5,9 @@
  */
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { generateEmbedding } from '../lib/openai/embeddings';
-import { queryVectors } from '../lib/pinecone/upsert';
-import * as logger from '../lib/utils/logger';
+import { generateEmbedding } from './lib/openai/embeddings';
+import { queryVectors } from './lib/pinecone/upsert';
+import * as logger from './lib/utils/logger';
 
 interface SearchRequest {
   query: string;

@@ -5,8 +5,8 @@
  */
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { validatePassword } from '../lib/auth/passwordAuth';
-import * as logger from '../lib/utils/logger';
+import { validatePassword } from './lib/auth/passwordAuth';
+import * as logger from './lib/utils/logger';
 
 /**
  * Authentication endpoint handler
