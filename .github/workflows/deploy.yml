@@ -45,7 +45,7 @@ jobs:
           mkdir -p deploy
 
           # Copy necessary files to deploy directory
-          cp -r dist node_modules host.json package.json deploy/
+          cp -r dist node_modules host.json package.json static deploy/
 
           # Create zip package
           cd deploy
@@ -141,7 +141,7 @@ jobs:
           sleep 30
 
           # Test status endpoint
-          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$FUNC_URL/api/status" || echo "000")
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$FUNC_URL/status" || echo "000")
           echo "Status endpoint returned: $STATUS_CODE"
 
           if [ "$STATUS_CODE" = "200" ] || [ "$STATUS_CODE" = "401" ]; then
