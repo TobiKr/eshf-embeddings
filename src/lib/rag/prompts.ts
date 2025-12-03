@@ -16,6 +16,7 @@ interface ForumChunk {
     url?: string;
   };
   score: number;
+  rerankerScore?: number; // Semantic relevance score from reranker
 }
 
 /**
@@ -38,12 +39,16 @@ export function formatContextFromChunks(chunks: ForumChunk[]): string {
         day: '2-digit',
       });
 
+      // Use reranker score if available (more accurate), otherwise fall back to vector score
+      const relevanceScore = chunk.rerankerScore ?? chunk.score;
+      const relevanceLabel = chunk.rerankerScore !== undefined ? 'Semantische Relevanz' : 'Relevanz';
+
       return `[Quelle ${index + 1}]
 Autor: ${chunk.metadata.author}
 Datum: ${date}
 Kategorie: ${chunk.metadata.category}
 Thread: ${chunk.metadata.threadTitle}
-Relevanz: ${(chunk.score * 100).toFixed(1)}%
+${relevanceLabel}: ${(relevanceScore * 100).toFixed(1)}%
 
 ${text}
 ${'─'.repeat(80)}`;
@@ -93,6 +98,9 @@ export function formatSourcesForDisplay(chunks: ForumChunk[], maxSources = 5): a
       day: 'numeric',
     });
 
+    // Use reranker score if available (more accurate), otherwise fall back to vector score
+    const relevanceScore = chunk.rerankerScore ?? chunk.score;
+
     return {
       id: index + 1,
       author: chunk.metadata.author,
@@ -100,7 +108,7 @@ export function formatSourcesForDisplay(chunks: ForumChunk[], maxSources = 5): a
       category: chunk.metadata.category,
       threadTitle: chunk.metadata.threadTitle,
       url: chunk.metadata.url || '#',
-      relevance: (chunk.score * 100).toFixed(1),
+      relevance: (relevanceScore * 100).toFixed(1),
       excerpt: (chunk.metadata.postText || chunk.metadata.contentPreview || '').substring(0, 200) + '...',
     };
   });

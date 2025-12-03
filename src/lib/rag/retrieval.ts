@@ -10,7 +10,7 @@ import { rerankChunks, getRerankerConfigFromEnv } from './reranker';
 import * as logger from '../utils/logger';
 
 // Configuration
-const DEFAULT_TOP_K = 30; // Retrieve top 30 chunks for detailed context
+const DEFAULT_TOP_K = 500; // Cast a wider net for reranking - reranker will filter to 3-15 best chunks
 
 interface RetrievalResult {
   success: boolean;
