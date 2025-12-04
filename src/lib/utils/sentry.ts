@@ -6,10 +6,24 @@
  */
 
 import * as Sentry from '@sentry/node';
-import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import { getConfig } from '../../types/config';
 
 let isInitialized = false;
+
+/**
+ * Try to load profiling integration, but don't fail if it's not available
+ * (Azure Functions runtime may not have the required system libraries)
+ */
+function getProfilingIntegration(): any[] {
+  try {
+    // Dynamic import to allow graceful failure
+    const { nodeProfilingIntegration } = require('@sentry/profiling-node');
+    return [nodeProfilingIntegration()];
+  } catch (error) {
+    console.warn('[Sentry] Profiling not available (system libraries missing). Continuing without profiling.');
+    return [];
+  }
+}
 
 /**
  * Initialize Sentry with Azure Functions configuration
@@ -32,6 +46,9 @@ export function initializeSentry(): void {
   }
 
   try {
+    // Get profiling integration if available
+    const profilingIntegrations = getProfilingIntegration();
+
     Sentry.init({
       dsn,
       environment,
@@ -40,11 +57,11 @@ export function initializeSentry(): void {
       // Performance Monitoring
       tracesSampleRate: environment === 'production' ? 0.1 : 1.0, // 10% in prod, 100% in dev
 
-      // Profiling
-      profilesSampleRate: environment === 'production' ? 0.1 : 1.0,
-      integrations: [
-        nodeProfilingIntegration(),
-      ],
+      // Profiling (if available)
+      profilesSampleRate: profilingIntegrations.length > 0
+        ? (environment === 'production' ? 0.1 : 1.0)
+        : 0,
+      integrations: profilingIntegrations,
 
       // Configure how errors are captured
       beforeSend(event, hint) {
