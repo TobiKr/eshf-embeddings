@@ -9,7 +9,7 @@ import { generateEmbedding } from './lib/openai/embeddings';
 import { queryVectors } from './lib/pinecone/upsert';
 import * as logger from './lib/utils/logger';
 
-import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
+import { startTransaction, setTag } from './lib/utils/sentry';
 
 interface SearchRequest {
   query: string;
@@ -74,26 +74,12 @@ export async function searchEndpoint(
       hasFilter: !!filter,
     });
 
-    addBreadcrumb(
-      'Generating embedding for search query',
-      'search',
-      'info',
-      { queryLength: query.length, topK }
-    );
-
     // Step 1: Generate embedding for query
     const embedding = await generateEmbedding(query);
 
     logger.debug('Query embedding generated', {
       dimensions: embedding.length,
     });
-
-    addBreadcrumb(
-      'Querying vector database',
-      'search',
-      'info',
-      { dimensions: embedding.length, topK }
-    );
 
     // Step 2: Query Pinecone
     const searchResults = await queryVectors(

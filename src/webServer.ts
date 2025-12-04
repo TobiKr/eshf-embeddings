@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as logger from './lib/utils/logger';
 
-import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
+import { startTransaction, setTag } from './lib/utils/sentry';
 
 // Content type mapping
 const CONTENT_TYPES: Record<string, string> = {
@@ -48,25 +48,11 @@ export async function webServer(
 
     setTag('filePath', filePath);
 
-    addBreadcrumb(
-      'Static file request received',
-      'http',
-      'info',
-      { filePath, method: request.method }
-    );
-
     // Security: Prevent directory traversal
     if (filePath.includes('..')) {
       const duration = Date.now() - startTime;
 
       logger.warn('Directory traversal attempt blocked', { path: filePath });
-
-      addBreadcrumb(
-        'Directory traversal attempt blocked',
-        'security',
-        'warning',
-        { path: filePath }
-      );
 
       transaction?.setStatus('permission_denied');
       transaction?.finish();

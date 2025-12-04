@@ -8,7 +8,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
 import { validatePassword } from './lib/auth/passwordAuth';
 import * as logger from './lib/utils/logger';
 
-import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
+import { startTransaction, setTag } from './lib/utils/sentry';
 
 /**
  * Authentication endpoint handler
@@ -29,7 +29,6 @@ export async function authApi(
   setTag('invocationId', context.invocationId);
 
   try {
-    addBreadcrumb('Authentication request received', 'auth', 'info');
 
     const body = await request.json() as { password?: string };
     const { password } = body;
@@ -51,8 +50,6 @@ export async function authApi(
 
     logger.info('Authentication attempt');
 
-    addBreadcrumb('Validating password', 'auth', 'info');
-
     const result = await validatePassword(password);
 
     const duration = Date.now() - startTime;
@@ -61,10 +58,8 @@ export async function authApi(
     // Track authentication attempt
 
     if (success) {
-      addBreadcrumb('Authentication successful', 'auth', 'info');
       transaction?.setStatus('ok');
     } else {
-      addBreadcrumb('Authentication failed', 'auth', 'warning');
       transaction?.setStatus('permission_denied');
     }
 

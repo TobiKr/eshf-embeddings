@@ -20,7 +20,7 @@ import { PostMetadata } from './types/post';
 import { getConfig } from './types/config';
 import * as logger from './lib/utils/logger';
 
-import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
+import { startTransaction, setTag } from './lib/utils/sentry';
 
 const QUEUE_NAME = 'posts-to-process';
 
@@ -49,13 +49,6 @@ async function manualProcessorHandler(
     const method = request.method.toUpperCase();
     const url = new URL(request.url);
     const pathParts = url.pathname.split('/').filter(Boolean);
-
-    addBreadcrumb(
-      `HTTP ${method} request received`,
-      'http',
-      'info',
-      { method, path: url.pathname }
-    );
 
     // GET /api/status - Get processing statistics
     if (method === 'GET' && pathParts[pathParts.length - 1] === 'status') {
@@ -159,8 +152,6 @@ async function handleGetStatus(): Promise<HttpResponseInit> {
  */
 async function handleManualDiscovery(): Promise<HttpResponseInit> {
   logger.info('Handling manual discovery request');
-
-  addBreadcrumb('Manual discovery initiated', 'operation', 'info');
 
   await ensureQueueExists(QUEUE_NAME);
 

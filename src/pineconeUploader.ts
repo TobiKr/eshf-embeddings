@@ -11,7 +11,7 @@ import { formatMetadataFromPostMetadata } from './lib/pinecone/metadata';
 import { updateProcessedStatus } from './lib/cosmos/queries';
 import { EmbeddingResult } from './types/queue';
 import * as logger from './lib/utils/logger';
-import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
+import { startTransaction, setTag } from './lib/utils/sentry';
 
 const INPUT_QUEUE = 'embeddings-ready';
 
@@ -52,16 +52,6 @@ async function pineconeUploaderHandler(
     // Add Sentry context
     setTag('postId', message.postId);
     setTag('category', message.metadata.category || 'unknown');
-    addBreadcrumb(
-      `Uploading vector for post ${message.postId}`,
-      'upload',
-      'info',
-      {
-        postId: message.postId,
-        dimensions: message.embedding.length,
-        category: message.metadata.category,
-      }
-    );
 
     // Create Pinecone vector ID (use postId as vector ID)
     const vectorId = message.postId;

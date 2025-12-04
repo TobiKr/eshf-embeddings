@@ -13,7 +13,7 @@ import { getSystemPrompt, formatContextFromChunks, formatSourcesForDisplay } fro
 import { ChatRequest, StreamChunk } from './types/chat';
 import * as logger from './lib/utils/logger';
 
-import { startTransaction, setTag, addBreadcrumb, captureException } from './lib/utils/sentry';
+import { startTransaction, setTag, captureException } from './lib/utils/sentry';
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -51,8 +51,6 @@ export async function chatApi(
       return unauthorizedResponse();
     }
 
-    addBreadcrumb('Chat request authenticated', 'auth', 'info');
-
     // Step 2: Parse request
     const body = await request.json() as ChatRequest;
     const { message, conversationHistory = [] } = body;
@@ -78,13 +76,6 @@ export async function chatApi(
       hasHistory: conversationHistory.length > 0,
     });
 
-    addBreadcrumb(
-      'Retrieving context from vector database',
-      'rag',
-      'info',
-      { messageLength: message.length }
-    );
-
     // Step 3: Retrieve relevant context from vector database
     const retrieval = await retrieveContext(message);
 
@@ -108,13 +99,6 @@ export async function chatApi(
       topScore: chunks[0]?.score,
     });
 
-    addBreadcrumb(
-      `Retrieved ${chunks.length} context chunks`,
-      'rag',
-      'info',
-      { chunksRetrieved: chunks.length, topScore: chunks[0]?.score }
-    );
-
     // Step 4: Format context and create system prompt
     const formattedContext = formatContextFromChunks(chunks);
     const systemPrompt = getSystemPrompt(formattedContext);
@@ -136,13 +120,6 @@ export async function chatApi(
       messagesCount: messages.length,
       systemPromptLength: systemPrompt.length,
     });
-
-    addBreadcrumb(
-      'Streaming response from Claude API',
-      'ai',
-      'info',
-      { model: CLAUDE_MODEL, messagesCount: messages.length }
-    );
 
     // Step 6: Stream response from Claude (transaction will be finished inside)
     return streamClaudeResponse(systemPrompt, messages, chunks, startTime, transaction);

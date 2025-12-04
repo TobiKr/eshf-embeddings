@@ -1,10 +1,11 @@
 /**
  * Structured logging utilities for Azure Functions
  *
- * Compatible with Sentry for cloud monitoring.
+ * All console logs are automatically captured by Sentry via captureConsoleIntegration.
+ * No manual breadcrumbs or message capturing needed.
  */
 
-import { captureException, captureMessage, addBreadcrumb } from './sentry';
+import { captureException } from './sentry';
 
 export enum LogLevel {
   DEBUG = 'DEBUG',
@@ -30,53 +31,45 @@ function formatLogMessage(
   return `[${timestamp}] [${level}] ${message}${contextStr}`;
 }
 
-
 /**
  * Log debug message
+ * Automatically captured by Sentry console integration
  */
 export function debug(message: string, context?: LogContext): void {
   const formattedMessage = formatLogMessage(LogLevel.DEBUG, message, context);
   console.debug(formattedMessage);
-
-  // Add as breadcrumb to Sentry for debugging context
-  addBreadcrumb(message, 'debug', 'debug', context);
 }
 
 /**
  * Log informational message
+ * Automatically captured by Sentry console integration
  */
 export function info(message: string, context?: LogContext): void {
   const formattedMessage = formatLogMessage(LogLevel.INFO, message, context);
   console.info(formattedMessage);
-
-  // Add as breadcrumb to Sentry for debugging context
-  addBreadcrumb(message, 'info', 'info', context);
 }
 
 /**
  * Log warning message
+ * Automatically captured by Sentry console integration
  */
 export function warn(message: string, context?: LogContext): void {
   const formattedMessage = formatLogMessage(LogLevel.WARN, message, context);
   console.warn(formattedMessage);
-
-  // Send warning to Sentry
-  captureMessage(message, 'warning', context);
 }
 
 /**
  * Log error message
+ * Automatically captured by Sentry console integration
  */
 export function error(message: string, context?: LogContext): void {
   const formattedMessage = formatLogMessage(LogLevel.ERROR, message, context);
   console.error(formattedMessage);
-
-  // Send error to Sentry
-  captureMessage(message, 'error', context);
 }
 
 /**
  * Log error with full error object details
+ * Uses Sentry's captureException for rich error tracking
  */
 export function logError(message: string, err: Error, context?: LogContext): void {
   const errorContext = {
@@ -85,8 +78,10 @@ export function logError(message: string, err: Error, context?: LogContext): voi
     errorMessage: err.message,
     errorStack: err.stack,
   };
-  error(message, errorContext);
 
-  // Capture exception in Sentry with full context
+  const formattedMessage = formatLogMessage(LogLevel.ERROR, message, errorContext);
+  console.error(formattedMessage);
+
+  // Capture exception in Sentry with full context for detailed error tracking
   captureException(err, context);
 }

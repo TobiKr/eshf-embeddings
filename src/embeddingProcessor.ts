@@ -15,7 +15,7 @@ import { PostQueueMessage, EmbeddingResult, ChunkMetadata } from './types/queue'
 import { isRateLimitError } from './lib/utils/errors';
 import { chunkText } from './lib/chunking';
 import * as logger from './lib/utils/logger';
-import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
+import { startTransaction, setTag } from './lib/utils/sentry';
 
 const INPUT_QUEUE = 'posts-to-process';
 const OUTPUT_QUEUE = 'embeddings-ready';
@@ -57,16 +57,6 @@ async function embeddingProcessorHandler(
     // Add Sentry context
     setTag('postId', message.postId);
     setTag('category', message.metadata.category || 'unknown');
-    addBreadcrumb(
-      `Processing post ${message.postId}`,
-      'processing',
-      'info',
-      {
-        postId: message.postId,
-        contentLength: message.content.length,
-        category: message.metadata.category,
-      }
-    );
 
     // Ensure output queue exists
     await ensureQueueExists(OUTPUT_QUEUE);

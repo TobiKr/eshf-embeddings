@@ -12,7 +12,7 @@ import { PostQueueMessage } from './types/queue';
 import { PostMetadata } from './types/post';
 import { getConfig } from './types/config';
 import * as logger from './lib/utils/logger';
-import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
+import { startTransaction, setTag } from './lib/utils/sentry';
 
 const QUEUE_NAME = 'posts-to-process';
 
@@ -43,13 +43,6 @@ async function postDiscoveryHandler(
     const batchSize = parseInt(getConfig('BATCH_SIZE', '10'), 10);
 
     logger.info('Querying for unprocessed posts', { batchSize });
-
-    addBreadcrumb(
-      'Querying Cosmos DB for unprocessed posts',
-      'database',
-      'info',
-      { batchSize }
-    );
 
     // Query Cosmos DB for unprocessed posts
     const posts = await queryUnprocessedPosts(batchSize);
