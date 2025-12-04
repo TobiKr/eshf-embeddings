@@ -1,10 +1,9 @@
 /**
  * Structured logging utilities for Azure Functions
  *
- * Compatible with Application Insights and Sentry for cloud monitoring.
+ * Compatible with Sentry for cloud monitoring.
  */
 
-import { trackTrace, trackException, SeverityLevel } from './telemetry';
 import { captureException, captureMessage, addBreadcrumb } from './sentry';
 
 export enum LogLevel {
@@ -31,18 +30,6 @@ function formatLogMessage(
   return `[${timestamp}] [${level}] ${message}${contextStr}`;
 }
 
-/**
- * Convert LogContext to string properties for Application Insights
- */
-function contextToProperties(context?: LogContext): Record<string, string> | undefined {
-  if (!context) return undefined;
-
-  const properties: Record<string, string> = {};
-  for (const [key, value] of Object.entries(context)) {
-    properties[key] = typeof value === 'object' ? JSON.stringify(value) : String(value);
-  }
-  return properties;
-}
 
 /**
  * Log debug message
@@ -50,7 +37,6 @@ function contextToProperties(context?: LogContext): Record<string, string> | und
 export function debug(message: string, context?: LogContext): void {
   const formattedMessage = formatLogMessage(LogLevel.DEBUG, message, context);
   console.debug(formattedMessage);
-  trackTrace(message, SeverityLevel.Verbose, contextToProperties(context));
 
   // Add as breadcrumb to Sentry for debugging context
   addBreadcrumb(message, 'debug', 'debug', context);
@@ -62,7 +48,6 @@ export function debug(message: string, context?: LogContext): void {
 export function info(message: string, context?: LogContext): void {
   const formattedMessage = formatLogMessage(LogLevel.INFO, message, context);
   console.info(formattedMessage);
-  trackTrace(message, SeverityLevel.Information, contextToProperties(context));
 
   // Add as breadcrumb to Sentry for debugging context
   addBreadcrumb(message, 'info', 'info', context);
@@ -74,7 +59,6 @@ export function info(message: string, context?: LogContext): void {
 export function warn(message: string, context?: LogContext): void {
   const formattedMessage = formatLogMessage(LogLevel.WARN, message, context);
   console.warn(formattedMessage);
-  trackTrace(message, SeverityLevel.Warning, contextToProperties(context));
 
   // Send warning to Sentry
   captureMessage(message, 'warning', context);
@@ -86,7 +70,6 @@ export function warn(message: string, context?: LogContext): void {
 export function error(message: string, context?: LogContext): void {
   const formattedMessage = formatLogMessage(LogLevel.ERROR, message, context);
   console.error(formattedMessage);
-  trackTrace(message, SeverityLevel.Error, contextToProperties(context));
 
   // Send error to Sentry
   captureMessage(message, 'error', context);
@@ -103,9 +86,6 @@ export function logError(message: string, err: Error, context?: LogContext): voi
     errorStack: err.stack,
   };
   error(message, errorContext);
-
-  // Track as exception in Application Insights
-  trackException(err, contextToProperties(context));
 
   // Capture exception in Sentry with full context
   captureException(err, context);

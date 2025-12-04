@@ -21,7 +21,10 @@
       "Bash(dir:*)",
       "Bash(mkdir:*)",
       "Bash(taskkill:*)",
-      "Bash(netstat:*)"
+      "Bash(netstat:*)",
+      "Bash(del \"c:\\DEV\\eshf-embeddings\\src\\lib\\utils\\telemetry.ts\")",
+      "Bash(if exist \"c:\\DEV\\eshf-embeddings\\tests\\unit\\telemetry.test.ts\" del \"c:\\DEV\\eshf-embeddings\\tests\\unit\\telemetry.test.ts\")",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

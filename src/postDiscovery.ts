@@ -12,7 +12,6 @@ import { PostQueueMessage } from './types/queue';
 import { PostMetadata } from './types/post';
 import { getConfig } from './types/config';
 import * as logger from './lib/utils/logger';
-import { trackEvent, trackMetric } from './lib/utils/telemetry';
 import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
 
 const QUEUE_NAME = 'posts-to-process';
@@ -112,24 +111,6 @@ async function postDiscoveryHandler(
       durationMs: duration,
     });
 
-    // Track success event and metrics
-    trackEvent(
-      'PostDiscovery.Success',
-      {
-        batchSize: batchSize.toString(),
-      },
-      {
-        postsFound: posts.length,
-        postsEnqueued: enqueuedCount,
-        errors: errorCount,
-        durationMs: duration,
-      }
-    );
-
-    trackMetric('PostDiscovery.PostsFound', posts.length);
-    trackMetric('PostDiscovery.PostsEnqueued', enqueuedCount);
-    trackMetric('PostDiscovery.ProcessingTime', duration);
-
     // Mark transaction as successful
     transaction?.setStatus('ok');
   } catch (err) {
@@ -140,12 +121,6 @@ async function postDiscoveryHandler(
 
     logger.logError('PostDiscovery function failed', error, {
       functionName: context.functionName,
-    });
-
-    // Track failure event
-    trackEvent('PostDiscovery.Failure', {
-      errorType: error.name,
-      errorMessage: error.message,
     });
 
     throw error;

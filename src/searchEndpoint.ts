@@ -8,7 +8,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
 import { generateEmbedding } from './lib/openai/embeddings';
 import { queryVectors } from './lib/pinecone/upsert';
 import * as logger from './lib/utils/logger';
-import { trackEvent, trackMetric } from './lib/utils/telemetry';
+
 import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
 
 interface SearchRequest {
@@ -53,9 +53,6 @@ export async function searchEndpoint(
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       const duration = Date.now() - startTime;
-
-      trackEvent('SearchEndpoint.BadRequest', { reason: 'empty_query' }, { durationMs: duration });
-      trackMetric('SearchEndpoint.RequestTime', duration, { outcome: 'bad_request' });
 
       transaction?.setStatus('invalid_argument');
       transaction?.finish();
@@ -120,23 +117,6 @@ export async function searchEndpoint(
       topScore: results[0]?.score,
     });
 
-    // Track successful search
-    trackEvent(
-      'SearchEndpoint.Success',
-      {
-        topK: topK.toString(),
-        hasFilter: filter ? 'true' : 'false',
-      },
-      {
-        resultsCount: results.length,
-        executionTime,
-        topScore: results[0]?.score || 0,
-      }
-    );
-
-    trackMetric('SearchEndpoint.ResultsCount', results.length, { topK: topK.toString() });
-    trackMetric('SearchEndpoint.RequestTime', executionTime);
-
     const response: SearchResponse = {
       results,
       executionTime,
@@ -157,13 +137,6 @@ export async function searchEndpoint(
 
     // Mark transaction as failed
     transaction?.setStatus('internal_error');
-
-    trackEvent('SearchEndpoint.Error', {
-      errorType: error instanceof Error ? error.name : 'unknown',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-    });
-
-    trackMetric('SearchEndpoint.RequestTime', duration, { outcome: 'error' });
 
     transaction?.finish();
 

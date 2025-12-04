@@ -7,7 +7,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { validatePassword } from './lib/auth/passwordAuth';
 import * as logger from './lib/utils/logger';
-import { trackEvent, trackMetric } from './lib/utils/telemetry';
+
 import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
 
 /**
@@ -37,9 +37,6 @@ export async function authApi(
     if (!password || typeof password !== 'string') {
       const duration = Date.now() - startTime;
 
-      trackEvent('AuthApi.BadRequest', { reason: 'missing_password' }, { durationMs: duration });
-      trackMetric('AuthApi.RequestTime', duration, { outcome: 'bad_request' });
-
       transaction?.setStatus('invalid_argument');
       transaction?.finish();
 
@@ -62,15 +59,6 @@ export async function authApi(
     const success = result.status === 200;
 
     // Track authentication attempt
-    trackEvent(
-      success ? 'AuthApi.Success' : 'AuthApi.Failed',
-      { statusCode: result.status?.toString() || '200' },
-      { durationMs: duration }
-    );
-
-    trackMetric('AuthApi.RequestTime', duration, {
-      outcome: success ? 'success' : 'failed',
-    });
 
     if (success) {
       addBreadcrumb('Authentication successful', 'auth', 'info');
@@ -90,13 +78,6 @@ export async function authApi(
 
     // Mark transaction as failed
     transaction?.setStatus('internal_error');
-
-    trackEvent('AuthApi.Error', {
-      errorType: error instanceof Error ? error.name : 'unknown',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-    });
-
-    trackMetric('AuthApi.RequestTime', duration, { outcome: 'error' });
 
     transaction?.finish();
 

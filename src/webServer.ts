@@ -8,7 +8,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
 import * as fs from 'fs';
 import * as path from 'path';
 import * as logger from './lib/utils/logger';
-import { trackEvent, trackMetric } from './lib/utils/telemetry';
+
 import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
 
 // Content type mapping
@@ -61,14 +61,6 @@ export async function webServer(
 
       logger.warn('Directory traversal attempt blocked', { path: filePath });
 
-      // Track security event
-      trackEvent('WebServer.SecurityViolation', {
-        type: 'directory_traversal',
-        path: filePath,
-      });
-
-      trackMetric('WebServer.RequestTime', duration, { outcome: 'security_blocked' });
-
       addBreadcrumb(
         'Directory traversal attempt blocked',
         'security',
@@ -95,9 +87,6 @@ export async function webServer(
 
       logger.warn('File not found', { path: filePath });
 
-      trackEvent('WebServer.NotFound', { path: filePath }, { durationMs: duration });
-      trackMetric('WebServer.RequestTime', duration, { outcome: 'not_found' });
-
       transaction?.setStatus('not_found');
       transaction?.finish();
 
@@ -111,9 +100,6 @@ export async function webServer(
     const stats = fs.statSync(absolutePath);
     if (!stats.isFile()) {
       const duration = Date.now() - startTime;
-
-      trackEvent('WebServer.NotFound', { path: filePath, reason: 'not_a_file' }, { durationMs: duration });
-      trackMetric('WebServer.RequestTime', duration, { outcome: 'not_found' });
 
       transaction?.setStatus('not_found');
       transaction?.finish();
@@ -139,23 +125,6 @@ export async function webServer(
       contentType,
     });
 
-    // Track successful file serving
-    trackEvent(
-      'WebServer.Success',
-      {
-        filePath,
-        contentType,
-        extension: ext,
-      },
-      {
-        fileSize: content.length,
-        durationMs: duration,
-      }
-    );
-
-    trackMetric('WebServer.FileSize', content.length, { extension: ext });
-    trackMetric('WebServer.RequestTime', duration, { outcome: 'success' });
-
     setTag('contentType', contentType);
     setTag('extension', ext);
 
@@ -177,13 +146,6 @@ export async function webServer(
 
     // Mark transaction as failed
     transaction?.setStatus('internal_error');
-
-    trackEvent('WebServer.Error', {
-      errorType: error instanceof Error ? error.name : 'unknown',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-    });
-
-    trackMetric('WebServer.RequestTime', duration, { outcome: 'error' });
 
     transaction?.finish();
 

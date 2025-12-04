@@ -15,7 +15,6 @@ import { PostQueueMessage, EmbeddingResult, ChunkMetadata } from './types/queue'
 import { isRateLimitError } from './lib/utils/errors';
 import { chunkText } from './lib/chunking';
 import * as logger from './lib/utils/logger';
-import { trackEvent, trackMetric } from './lib/utils/telemetry';
 import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
 
 const INPUT_QUEUE = 'posts-to-process';
@@ -143,28 +142,6 @@ async function embeddingProcessorHandler(
       durationMs: duration,
     });
 
-    // Track success event and metrics
-    trackEvent(
-      'EmbeddingProcessor.Success',
-      {
-        postId: message.postId,
-        category: message.metadata.category || 'unknown',
-        wasChunked: chunkingResult.wasChunked.toString(),
-      },
-      {
-        chunksProcessed: chunkingResult.chunks.length,
-        totalTokens: chunkingResult.totalTokens,
-        durationMs: duration,
-      }
-    );
-
-    trackMetric('EmbeddingProcessor.ChunksPerPost', chunkingResult.chunks.length, {
-      category: message.metadata.category || 'unknown',
-    });
-    trackMetric('EmbeddingProcessor.ProcessingTime', duration, {
-      chunksProcessed: chunkingResult.chunks.length.toString(),
-    });
-
     // Mark transaction as successful
     transaction?.setStatus('ok');
   } catch (err) {
@@ -180,11 +157,6 @@ async function embeddingProcessorHandler(
         functionName: context.functionName,
       });
 
-      // Track rate limit event
-      trackEvent('EmbeddingProcessor.RateLimitError', {
-        errorMessage: error.message,
-      });
-
       // Re-throw to trigger Azure Functions retry mechanism
       throw error;
     }
@@ -192,12 +164,6 @@ async function embeddingProcessorHandler(
     // For other errors, log and re-throw to move to poison queue after max retries
     logger.logError('EmbeddingProcessor failed', error, {
       functionName: context.functionName,
-    });
-
-    // Track failure event
-    trackEvent('EmbeddingProcessor.Failure', {
-      errorType: error.name,
-      errorMessage: error.message,
     });
 
     throw error;

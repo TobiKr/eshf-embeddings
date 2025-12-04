@@ -12,7 +12,7 @@ import { retrieveContext } from './lib/rag/retrieval';
 import { getSystemPrompt, formatContextFromChunks, formatSourcesForDisplay } from './lib/rag/prompts';
 import { ChatRequest, StreamChunk } from './types/chat';
 import * as logger from './lib/utils/logger';
-import { trackEvent, trackMetric } from './lib/utils/telemetry';
+
 import { startTransaction, setTag, addBreadcrumb, captureException } from './lib/utils/sentry';
 
 // Initialize Anthropic client
@@ -45,8 +45,6 @@ export async function chatApi(
     // Step 1: Authentication
     if (!isAuthenticated(request)) {
       logger.warn('Unauthorized chat request');
-
-      trackEvent('ChatApi.Unauthorized');
       transaction?.setStatus('unauthenticated');
       transaction?.finish();
 
@@ -60,7 +58,6 @@ export async function chatApi(
     const { message, conversationHistory = [] } = body;
 
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
-      trackEvent('ChatApi.BadRequest', { reason: 'empty_message' });
       transaction?.setStatus('invalid_argument');
       transaction?.finish();
 
@@ -93,8 +90,6 @@ export async function chatApi(
 
     if (!retrieval.success) {
       logger.error('Retrieval failed', { error: retrieval.error });
-
-      trackEvent('ChatApi.RetrievalFailed', { error: retrieval.error || 'unknown' });
       transaction?.setStatus('internal_error');
       transaction?.finish();
 
@@ -112,8 +107,6 @@ export async function chatApi(
       chunksRetrieved: chunks.length,
       topScore: chunks[0]?.score,
     });
-
-    trackMetric('ChatApi.ChunksRetrieved', chunks.length);
 
     addBreadcrumb(
       `Retrieved ${chunks.length} context chunks`,
@@ -162,11 +155,6 @@ export async function chatApi(
     captureException(error as Error, {
       function: 'chatApi',
       invocationId: context.invocationId,
-    });
-
-    trackEvent('ChatApi.Error', {
-      errorType: error instanceof Error ? error.name : 'unknown',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
     });
 
     transaction?.finish();
@@ -243,26 +231,6 @@ async function streamClaudeResponse(
           executionTime: duration,
         });
 
-        // Track successful completion with metrics
-        trackEvent(
-          'ChatApi.Success',
-          {
-            model: CLAUDE_MODEL,
-            chunksUsed: chunks.length.toString(),
-          },
-          {
-            inputTokens: finalMessage.usage.input_tokens,
-            outputTokens: finalMessage.usage.output_tokens,
-            totalTokens: finalMessage.usage.input_tokens + finalMessage.usage.output_tokens,
-            durationMs: duration,
-          }
-        );
-
-        trackMetric('ChatApi.InputTokens', finalMessage.usage.input_tokens);
-        trackMetric('ChatApi.OutputTokens', finalMessage.usage.output_tokens);
-        trackMetric('ChatApi.TotalTokens', finalMessage.usage.input_tokens + finalMessage.usage.output_tokens);
-        trackMetric('ChatApi.ResponseTime', duration);
-
         // Send sources
         const sources = formatSourcesForDisplay(chunks, 5);
         const sourcesChunk: StreamChunk = {
@@ -291,11 +259,6 @@ async function streamClaudeResponse(
         captureException(error as Error, {
           function: 'streamClaudeResponse',
           phase: 'streaming',
-        });
-
-        trackEvent('ChatApi.StreamingError', {
-          errorType: error instanceof Error ? error.name : 'unknown',
-          errorMessage: error instanceof Error ? error.message : 'Unknown error',
         });
 
         const errorChunk: StreamChunk = {

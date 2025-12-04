@@ -18,12 +18,6 @@
   },
   "functionTimeout": "00:10:00",
   "logging": {
-    "applicationInsights": {
-      "samplingSettings": {
-        "isEnabled": true,
-        "maxTelemetryItemsPerSecond": 20
-      }
-    },
     "logLevel": {
       "default": "Information",
       "Host.Results": "Information",

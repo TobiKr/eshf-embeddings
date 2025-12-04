@@ -7,7 +7,6 @@ import { getContainer } from './client';
 import { ForumPost } from '../../types/post';
 import { DatabaseError } from '../utils/errors';
 import * as logger from '../utils/logger';
-import { trackDependency, trackMetric } from '../utils/telemetry';
 
 /**
  * Queries for unprocessed posts (where embeddingProcessed is false or undefined)
@@ -18,8 +17,6 @@ import { trackDependency, trackMetric } from '../utils/telemetry';
 export async function queryUnprocessedPosts(
   limit: number
 ): Promise<ForumPost[]> {
-  const startTime = Date.now();
-
   try {
     const container = getContainer();
 
@@ -41,47 +38,14 @@ export async function queryUnprocessedPosts(
     logger.debug('Querying unprocessed posts', { limit });
 
     const { resources } = await container.items.query<ForumPost>(querySpec).fetchAll();
-    const duration = Date.now() - startTime;
 
     logger.info('Retrieved unprocessed posts', { count: resources.length });
-
-    // Track successful query
-    trackDependency(
-      'CosmosDB.QueryUnprocessedPosts',
-      'Azure Cosmos DB',
-      `SELECT TOP ${limit} unprocessed posts`,
-      duration,
-      true,
-      200,
-      {
-        resultCount: resources.length.toString(),
-        limit: limit.toString(),
-      }
-    );
-
-    trackMetric('CosmosDB.QueryLatency', duration, {
-      operation: 'queryUnprocessedPosts',
-    });
 
     return resources;
   } catch (err) {
     const error = err as Error;
-    const duration = Date.now() - startTime;
 
     logger.logError('Failed to query unprocessed posts', error);
-
-    // Track failed query
-    trackDependency(
-      'CosmosDB.QueryUnprocessedPosts',
-      'Azure Cosmos DB',
-      `SELECT TOP ${limit} unprocessed posts`,
-      duration,
-      false,
-      0,
-      {
-        errorMessage: error.message,
-      }
-    );
 
     throw new DatabaseError('Failed to query unprocessed posts', error);
   }
@@ -99,8 +63,6 @@ export async function updateProcessedStatus(
   threadId: string,
   embeddingId: string
 ): Promise<void> {
-  const startTime = Date.now();
-
   try {
     const container = getContainer();
 
@@ -123,42 +85,12 @@ export async function updateProcessedStatus(
 
     // Replace the document
     await container.item(postId, threadId).replace(updatedPost);
-    const duration = Date.now() - startTime;
 
     logger.info('Post marked as processed', { postId, embeddingId });
-
-    // Track successful update
-    trackDependency(
-      'CosmosDB.UpdateProcessedStatus',
-      'Azure Cosmos DB',
-      `UPDATE post ${postId}`,
-      duration,
-      true,
-      200,
-      {
-        postId,
-        embeddingId,
-      }
-    );
   } catch (err) {
     const error = err as Error;
-    const duration = Date.now() - startTime;
 
     logger.logError('Failed to update processed status', error, { postId });
-
-    // Track failed update
-    trackDependency(
-      'CosmosDB.UpdateProcessedStatus',
-      'Azure Cosmos DB',
-      `UPDATE post ${postId}`,
-      duration,
-      false,
-      0,
-      {
-        postId,
-        errorMessage: error.message,
-      }
-    );
 
     throw new DatabaseError(`Failed to update processed status for post ${postId}`, error);
   }

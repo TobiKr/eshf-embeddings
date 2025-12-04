@@ -19,7 +19,7 @@ import { PostQueueMessage } from './types/queue';
 import { PostMetadata } from './types/post';
 import { getConfig } from './types/config';
 import * as logger from './lib/utils/logger';
-import { trackEvent, trackMetric } from './lib/utils/telemetry';
+
 import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
 
 const QUEUE_NAME = 'posts-to-process';
@@ -62,8 +62,6 @@ async function manualProcessorHandler(
       const result = await handleGetStatus();
 
       const duration = Date.now() - startTime;
-      trackEvent('ManualProcessor.GetStatus', {}, { durationMs: duration });
-      trackMetric('ManualProcessor.RequestTime', duration, { endpoint: 'status' });
 
       transaction?.setStatus('ok');
       return result;
@@ -80,11 +78,6 @@ async function manualProcessorHandler(
       const result = await handleProcessSpecificPost(postId, threadId);
 
       const duration = Date.now() - startTime;
-      trackEvent('ManualProcessor.ProcessSpecificPost',
-        { postId, threadId, statusCode: result.status?.toString() || '200' },
-        { durationMs: duration }
-      );
-      trackMetric('ManualProcessor.RequestTime', duration, { endpoint: 'processSpecific' });
 
       transaction?.setStatus('ok');
       return result;
@@ -95,8 +88,6 @@ async function manualProcessorHandler(
       const result = await handleManualDiscovery();
 
       const duration = Date.now() - startTime;
-      trackEvent('ManualProcessor.ManualDiscovery', {}, { durationMs: duration });
-      trackMetric('ManualProcessor.RequestTime', duration, { endpoint: 'discovery' });
 
       transaction?.setStatus('ok');
       return result;
@@ -106,7 +97,6 @@ async function manualProcessorHandler(
     transaction?.setStatus('not_found');
 
     const duration = Date.now() - startTime;
-    trackEvent('ManualProcessor.NotFound', { path: url.pathname }, { durationMs: duration });
 
     return {
       status: 404,
@@ -122,12 +112,6 @@ async function manualProcessorHandler(
     transaction?.setStatus('internal_error');
 
     logger.logError('ManualProcessor failed', error);
-
-    // Track failure event
-    trackEvent('ManualProcessor.Failure', {
-      errorType: error.name,
-      errorMessage: error.message,
-    });
 
     return {
       status: 500,
@@ -184,7 +168,6 @@ async function handleManualDiscovery(): Promise<HttpResponseInit> {
   const posts = await queryUnprocessedPosts(batchSize);
 
   if (posts.length === 0) {
-    trackMetric('ManualDiscovery.PostsEnqueued', 0);
     return {
       status: 200,
       jsonBody: {
@@ -232,9 +215,6 @@ async function handleManualDiscovery(): Promise<HttpResponseInit> {
   };
 
   logger.info('Manual discovery completed', response);
-
-  trackMetric('ManualDiscovery.PostsFound', posts.length);
-  trackMetric('ManualDiscovery.PostsEnqueued', enqueuedCount);
 
   return {
     status: 200,
