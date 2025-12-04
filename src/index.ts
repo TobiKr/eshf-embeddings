@@ -12,9 +12,7 @@ import { initializeSentry } from './lib/utils/sentry';
 // Sentry should be initialized first to catch all errors
 initializeSentry();
 
-
 // Import all function files to trigger their registration
-
 // Existing embedding pipeline functions
 import './postDiscovery';
 import './embeddingProcessor';
