@@ -75,11 +75,9 @@ export function initializeSentry(): void {
       */
 
       // Capture console logs and send to Sentry
-      integrations: [
+      integrations: [        
+        Sentry.captureConsoleIntegration(),
         ...profilingIntegrations,
-        Sentry.captureConsoleIntegration({
-          levels: ['log', 'info', 'warn', 'error', 'debug', 'assert'],
-        }),
       ],
 
       // Configure breadcrumbs
