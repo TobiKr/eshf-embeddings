@@ -75,6 +75,7 @@ export function initializeSentry(): void {
       */
 
       // Capture console logs and send to Sentry
+      enableLogs: true,
       integrations: [        
         Sentry.captureConsoleIntegration(),
         ...profilingIntegrations,
