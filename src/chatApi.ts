@@ -12,6 +12,8 @@ import { retrieveContext } from './lib/rag/retrieval';
 import { getSystemPrompt, formatContextFromChunks, formatSourcesForDisplay } from './lib/rag/prompts';
 import { ChatRequest, StreamChunk } from './types/chat';
 import * as logger from './lib/utils/logger';
+import { trackEvent, trackMetric } from './lib/utils/telemetry';
+import { startTransaction, setTag, addBreadcrumb, captureException } from './lib/utils/sentry';
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -34,18 +36,34 @@ export async function chatApi(
 ): Promise<HttpResponseInit> {
   const startTime = Date.now();
 
+  // Start Sentry transaction for performance monitoring
+  const transaction = startTransaction('chatApi', 'http.request');
+  setTag('function', 'chatApi');
+  setTag('invocationId', context.invocationId);
+
   try {
     // Step 1: Authentication
     if (!isAuthenticated(request)) {
       logger.warn('Unauthorized chat request');
+
+      trackEvent('ChatApi.Unauthorized');
+      transaction?.setStatus('unauthenticated');
+      transaction?.finish();
+
       return unauthorizedResponse();
     }
+
+    addBreadcrumb('Chat request authenticated', 'auth', 'info');
 
     // Step 2: Parse request
     const body = await request.json() as ChatRequest;
     const { message, conversationHistory = [] } = body;
 
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
+      trackEvent('ChatApi.BadRequest', { reason: 'empty_message' });
+      transaction?.setStatus('invalid_argument');
+      transaction?.finish();
+
       return {
         status: 400,
         jsonBody: {
@@ -55,16 +73,31 @@ export async function chatApi(
       };
     }
 
+    setTag('messageLength', message.length.toString());
+    setTag('hasHistory', conversationHistory.length > 0 ? 'true' : 'false');
+
     logger.info('Chat request received', {
       messageLength: message.length,
       hasHistory: conversationHistory.length > 0,
     });
+
+    addBreadcrumb(
+      'Retrieving context from vector database',
+      'rag',
+      'info',
+      { messageLength: message.length }
+    );
 
     // Step 3: Retrieve relevant context from vector database
     const retrieval = await retrieveContext(message);
 
     if (!retrieval.success) {
       logger.error('Retrieval failed', { error: retrieval.error });
+
+      trackEvent('ChatApi.RetrievalFailed', { error: retrieval.error || 'unknown' });
+      transaction?.setStatus('internal_error');
+      transaction?.finish();
+
       return {
         status: 500,
         jsonBody: {
@@ -79,6 +112,15 @@ export async function chatApi(
       chunksRetrieved: chunks.length,
       topScore: chunks[0]?.score,
     });
+
+    trackMetric('ChatApi.ChunksRetrieved', chunks.length);
+
+    addBreadcrumb(
+      `Retrieved ${chunks.length} context chunks`,
+      'rag',
+      'info',
+      { chunksRetrieved: chunks.length, topScore: chunks[0]?.score }
+    );
 
     // Step 4: Format context and create system prompt
     const formattedContext = formatContextFromChunks(chunks);
@@ -102,11 +144,32 @@ export async function chatApi(
       systemPromptLength: systemPrompt.length,
     });
 
-    // Step 6: Stream response from Claude
-    return streamClaudeResponse(systemPrompt, messages, chunks, startTime);
+    addBreadcrumb(
+      'Streaming response from Claude API',
+      'ai',
+      'info',
+      { model: CLAUDE_MODEL, messagesCount: messages.length }
+    );
+
+    // Step 6: Stream response from Claude (transaction will be finished inside)
+    return streamClaudeResponse(systemPrompt, messages, chunks, startTime, transaction);
 
   } catch (error) {
     logger.error('Chat API error', { error });
+
+    // Mark transaction as failed and capture exception
+    transaction?.setStatus('internal_error');
+    captureException(error as Error, {
+      function: 'chatApi',
+      invocationId: context.invocationId,
+    });
+
+    trackEvent('ChatApi.Error', {
+      errorType: error instanceof Error ? error.name : 'unknown',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+    });
+
+    transaction?.finish();
 
     return {
       status: 500,
@@ -125,13 +188,15 @@ export async function chatApi(
  * @param messages - Conversation messages
  * @param chunks - Retrieved chunks for source citations
  * @param startTime - Request start time for metrics
+ * @param transaction - Optional Sentry transaction for tracking
  * @returns Streaming HTTP response
  */
 async function streamClaudeResponse(
   systemPrompt: string,
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   chunks: any[],
-  startTime: number
+  startTime: number,
+  transaction?: { setStatus: (status: string) => void; finish: () => void }
 ): Promise<HttpResponseInit> {
   const encoder = new TextEncoder();
 
@@ -169,12 +234,34 @@ async function streamClaudeResponse(
         // Wait for stream to complete
         const finalMessage = await claudeStream.finalMessage();
 
+        const duration = Date.now() - startTime;
+
         logger.info('Claude response completed', {
           tokensUsed: finalMessage.usage.input_tokens + finalMessage.usage.output_tokens,
           inputTokens: finalMessage.usage.input_tokens,
           outputTokens: finalMessage.usage.output_tokens,
-          executionTime: Date.now() - startTime,
+          executionTime: duration,
         });
+
+        // Track successful completion with metrics
+        trackEvent(
+          'ChatApi.Success',
+          {
+            model: CLAUDE_MODEL,
+            chunksUsed: chunks.length.toString(),
+          },
+          {
+            inputTokens: finalMessage.usage.input_tokens,
+            outputTokens: finalMessage.usage.output_tokens,
+            totalTokens: finalMessage.usage.input_tokens + finalMessage.usage.output_tokens,
+            durationMs: duration,
+          }
+        );
+
+        trackMetric('ChatApi.InputTokens', finalMessage.usage.input_tokens);
+        trackMetric('ChatApi.OutputTokens', finalMessage.usage.output_tokens);
+        trackMetric('ChatApi.TotalTokens', finalMessage.usage.input_tokens + finalMessage.usage.output_tokens);
+        trackMetric('ChatApi.ResponseTime', duration);
 
         // Send sources
         const sources = formatSourcesForDisplay(chunks, 5);
@@ -193,8 +280,23 @@ async function streamClaudeResponse(
         );
 
         controller.close();
+
+        // Mark transaction as successful
+        transaction?.setStatus('ok');
+        transaction?.finish();
       } catch (error) {
         logger.error('Error during streaming', { error });
+
+        // Track streaming error
+        captureException(error as Error, {
+          function: 'streamClaudeResponse',
+          phase: 'streaming',
+        });
+
+        trackEvent('ChatApi.StreamingError', {
+          errorType: error instanceof Error ? error.name : 'unknown',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        });
 
         const errorChunk: StreamChunk = {
           type: 'error',
@@ -204,6 +306,10 @@ async function streamClaudeResponse(
           encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`)
         );
         controller.close();
+
+        // Mark transaction as failed
+        transaction?.setStatus('internal_error');
+        transaction?.finish();
       }
     },
   });

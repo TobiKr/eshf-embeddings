@@ -12,6 +12,8 @@ import { PostQueueMessage } from './types/queue';
 import { PostMetadata } from './types/post';
 import { getConfig } from './types/config';
 import * as logger from './lib/utils/logger';
+import { trackEvent, trackMetric } from './lib/utils/telemetry';
+import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
 
 const QUEUE_NAME = 'posts-to-process';
 
@@ -23,6 +25,11 @@ async function postDiscoveryHandler(
   context: InvocationContext
 ): Promise<void> {
   const startTime = Date.now();
+
+  // Start Sentry transaction for performance monitoring
+  const transaction = startTransaction('postDiscovery', 'timer.process');
+  setTag('function', 'postDiscovery');
+  setTag('invocationId', context.invocationId);
 
   logger.info('PostDiscovery function triggered', {
     functionName: context.functionName,
@@ -37,6 +44,13 @@ async function postDiscoveryHandler(
     const batchSize = parseInt(getConfig('BATCH_SIZE', '10'), 10);
 
     logger.info('Querying for unprocessed posts', { batchSize });
+
+    addBreadcrumb(
+      'Querying Cosmos DB for unprocessed posts',
+      'database',
+      'info',
+      { batchSize }
+    );
 
     // Query Cosmos DB for unprocessed posts
     const posts = await queryUnprocessedPosts(batchSize);
@@ -97,12 +111,47 @@ async function postDiscoveryHandler(
       errors: errorCount,
       durationMs: duration,
     });
+
+    // Track success event and metrics
+    trackEvent(
+      'PostDiscovery.Success',
+      {
+        batchSize: batchSize.toString(),
+      },
+      {
+        postsFound: posts.length,
+        postsEnqueued: enqueuedCount,
+        errors: errorCount,
+        durationMs: duration,
+      }
+    );
+
+    trackMetric('PostDiscovery.PostsFound', posts.length);
+    trackMetric('PostDiscovery.PostsEnqueued', enqueuedCount);
+    trackMetric('PostDiscovery.ProcessingTime', duration);
+
+    // Mark transaction as successful
+    transaction?.setStatus('ok');
   } catch (err) {
     const error = err as Error;
+
+    // Mark transaction as failed
+    transaction?.setStatus('internal_error');
+
     logger.logError('PostDiscovery function failed', error, {
       functionName: context.functionName,
     });
+
+    // Track failure event
+    trackEvent('PostDiscovery.Failure', {
+      errorType: error.name,
+      errorMessage: error.message,
+    });
+
     throw error;
+  } finally {
+    // Finish Sentry transaction
+    transaction?.finish();
   }
 }
 

@@ -8,6 +8,8 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
 import * as fs from 'fs';
 import * as path from 'path';
 import * as logger from './lib/utils/logger';
+import { trackEvent, trackMetric } from './lib/utils/telemetry';
+import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
 
 // Content type mapping
 const CONTENT_TYPES: Record<string, string> = {
@@ -28,6 +30,13 @@ export async function webServer(
   request: HttpRequest,
   context: InvocationContext
 ): Promise<HttpResponseInit> {
+  const startTime = Date.now();
+
+  // Start Sentry transaction for performance monitoring
+  const transaction = startTransaction('webServer', 'http.request');
+  setTag('function', 'webServer');
+  setTag('invocationId', context.invocationId);
+
   try {
     const url = new URL(request.url);
     let filePath = url.pathname;
@@ -37,9 +46,39 @@ export async function webServer(
       filePath = '/index.html';
     }
 
+    setTag('filePath', filePath);
+
+    addBreadcrumb(
+      'Static file request received',
+      'http',
+      'info',
+      { filePath, method: request.method }
+    );
+
     // Security: Prevent directory traversal
     if (filePath.includes('..')) {
+      const duration = Date.now() - startTime;
+
       logger.warn('Directory traversal attempt blocked', { path: filePath });
+
+      // Track security event
+      trackEvent('WebServer.SecurityViolation', {
+        type: 'directory_traversal',
+        path: filePath,
+      });
+
+      trackMetric('WebServer.RequestTime', duration, { outcome: 'security_blocked' });
+
+      addBreadcrumb(
+        'Directory traversal attempt blocked',
+        'security',
+        'warning',
+        { path: filePath }
+      );
+
+      transaction?.setStatus('permission_denied');
+      transaction?.finish();
+
       return {
         status: 403,
         body: 'Forbidden',
@@ -52,7 +91,16 @@ export async function webServer(
 
     // Check if file exists
     if (!fs.existsSync(absolutePath)) {
+      const duration = Date.now() - startTime;
+
       logger.warn('File not found', { path: filePath });
+
+      trackEvent('WebServer.NotFound', { path: filePath }, { durationMs: duration });
+      trackMetric('WebServer.RequestTime', duration, { outcome: 'not_found' });
+
+      transaction?.setStatus('not_found');
+      transaction?.finish();
+
       return {
         status: 404,
         body: 'Not Found',
@@ -62,6 +110,14 @@ export async function webServer(
     // Check if it's a file (not directory)
     const stats = fs.statSync(absolutePath);
     if (!stats.isFile()) {
+      const duration = Date.now() - startTime;
+
+      trackEvent('WebServer.NotFound', { path: filePath, reason: 'not_a_file' }, { durationMs: duration });
+      trackMetric('WebServer.RequestTime', duration, { outcome: 'not_found' });
+
+      transaction?.setStatus('not_found');
+      transaction?.finish();
+
       return {
         status: 404,
         body: 'Not Found',
@@ -75,11 +131,36 @@ export async function webServer(
     const ext = path.extname(filePath).toLowerCase();
     const contentType = CONTENT_TYPES[ext] || 'application/octet-stream';
 
+    const duration = Date.now() - startTime;
+
     logger.debug('Serving static file', {
       path: filePath,
       size: content.length,
       contentType,
     });
+
+    // Track successful file serving
+    trackEvent(
+      'WebServer.Success',
+      {
+        filePath,
+        contentType,
+        extension: ext,
+      },
+      {
+        fileSize: content.length,
+        durationMs: duration,
+      }
+    );
+
+    trackMetric('WebServer.FileSize', content.length, { extension: ext });
+    trackMetric('WebServer.RequestTime', duration, { outcome: 'success' });
+
+    setTag('contentType', contentType);
+    setTag('extension', ext);
+
+    transaction?.setStatus('ok');
+    transaction?.finish();
 
     return {
       status: 200,
@@ -90,7 +171,21 @@ export async function webServer(
       body: content.toString(),
     };
   } catch (error) {
+    const duration = Date.now() - startTime;
+
     logger.error('Error serving static file', { error });
+
+    // Mark transaction as failed
+    transaction?.setStatus('internal_error');
+
+    trackEvent('WebServer.Error', {
+      errorType: error instanceof Error ? error.name : 'unknown',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+    });
+
+    trackMetric('WebServer.RequestTime', duration, { outcome: 'error' });
+
+    transaction?.finish();
 
     return {
       status: 500,

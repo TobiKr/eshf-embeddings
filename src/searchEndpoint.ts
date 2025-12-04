@@ -8,6 +8,8 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
 import { generateEmbedding } from './lib/openai/embeddings';
 import { queryVectors } from './lib/pinecone/upsert';
 import * as logger from './lib/utils/logger';
+import { trackEvent, trackMetric } from './lib/utils/telemetry';
+import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
 
 interface SearchRequest {
   query: string;
@@ -39,12 +41,25 @@ export async function searchEndpoint(
 ): Promise<HttpResponseInit> {
   const startTime = Date.now();
 
+  // Start Sentry transaction for performance monitoring
+  const transaction = startTransaction('searchEndpoint', 'http.request');
+  setTag('function', 'searchEndpoint');
+  setTag('invocationId', context.invocationId);
+
   try {
     // Parse request body
     const body = await request.json() as SearchRequest;
     const { query, topK = 10, filter, includeMetadata = true } = body;
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
+      const duration = Date.now() - startTime;
+
+      trackEvent('SearchEndpoint.BadRequest', { reason: 'empty_query' }, { durationMs: duration });
+      trackMetric('SearchEndpoint.RequestTime', duration, { outcome: 'bad_request' });
+
+      transaction?.setStatus('invalid_argument');
+      transaction?.finish();
+
       return {
         status: 400,
         jsonBody: {
@@ -53,11 +68,21 @@ export async function searchEndpoint(
       };
     }
 
+    setTag('topK', topK.toString());
+    setTag('hasFilter', filter ? 'true' : 'false');
+
     logger.info('Semantic search request', {
       query: query.substring(0, 100),
       topK,
       hasFilter: !!filter,
     });
+
+    addBreadcrumb(
+      'Generating embedding for search query',
+      'search',
+      'info',
+      { queryLength: query.length, topK }
+    );
 
     // Step 1: Generate embedding for query
     const embedding = await generateEmbedding(query);
@@ -65,6 +90,13 @@ export async function searchEndpoint(
     logger.debug('Query embedding generated', {
       dimensions: embedding.length,
     });
+
+    addBreadcrumb(
+      'Querying vector database',
+      'search',
+      'info',
+      { dimensions: embedding.length, topK }
+    );
 
     // Step 2: Query Pinecone
     const searchResults = await queryVectors(
@@ -88,10 +120,30 @@ export async function searchEndpoint(
       topScore: results[0]?.score,
     });
 
+    // Track successful search
+    trackEvent(
+      'SearchEndpoint.Success',
+      {
+        topK: topK.toString(),
+        hasFilter: filter ? 'true' : 'false',
+      },
+      {
+        resultsCount: results.length,
+        executionTime,
+        topScore: results[0]?.score || 0,
+      }
+    );
+
+    trackMetric('SearchEndpoint.ResultsCount', results.length, { topK: topK.toString() });
+    trackMetric('SearchEndpoint.RequestTime', executionTime);
+
     const response: SearchResponse = {
       results,
       executionTime,
     };
+
+    transaction?.setStatus('ok');
+    transaction?.finish();
 
     return {
       status: 200,
@@ -99,7 +151,21 @@ export async function searchEndpoint(
     };
 
   } catch (error) {
+    const duration = Date.now() - startTime;
+
     logger.error('Search endpoint error', { error });
+
+    // Mark transaction as failed
+    transaction?.setStatus('internal_error');
+
+    trackEvent('SearchEndpoint.Error', {
+      errorType: error instanceof Error ? error.name : 'unknown',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+    });
+
+    trackMetric('SearchEndpoint.RequestTime', duration, { outcome: 'error' });
+
+    transaction?.finish();
 
     return {
       status: 500,

@@ -19,6 +19,8 @@ import { PostQueueMessage } from './types/queue';
 import { PostMetadata } from './types/post';
 import { getConfig } from './types/config';
 import * as logger from './lib/utils/logger';
+import { trackEvent, trackMetric } from './lib/utils/telemetry';
+import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
 
 const QUEUE_NAME = 'posts-to-process';
 
@@ -29,6 +31,14 @@ async function manualProcessorHandler(
   request: HttpRequest,
   context: InvocationContext
 ): Promise<HttpResponseInit> {
+  const startTime = Date.now();
+
+  // Start Sentry transaction for performance monitoring
+  const transaction = startTransaction('manualProcessor', 'http.request');
+  setTag('function', 'manualProcessor');
+  setTag('invocationId', context.invocationId);
+  setTag('method', request.method);
+
   logger.info('ManualProcessor function triggered', {
     method: request.method,
     url: request.url,
@@ -40,24 +50,64 @@ async function manualProcessorHandler(
     const url = new URL(request.url);
     const pathParts = url.pathname.split('/').filter(Boolean);
 
+    addBreadcrumb(
+      `HTTP ${method} request received`,
+      'http',
+      'info',
+      { method, path: url.pathname }
+    );
+
     // GET /api/status - Get processing statistics
     if (method === 'GET' && pathParts[pathParts.length - 1] === 'status') {
-      return await handleGetStatus();
+      const result = await handleGetStatus();
+
+      const duration = Date.now() - startTime;
+      trackEvent('ManualProcessor.GetStatus', {}, { durationMs: duration });
+      trackMetric('ManualProcessor.RequestTime', duration, { endpoint: 'status' });
+
+      transaction?.setStatus('ok');
+      return result;
     }
 
     // POST /api/process/{postId}/{threadId} - Process specific post
     if (method === 'POST' && pathParts.length >= 4) {
       const postId = pathParts[2];
       const threadId = pathParts[3];
-      return await handleProcessSpecificPost(postId, threadId);
+
+      setTag('postId', postId);
+      setTag('threadId', threadId);
+
+      const result = await handleProcessSpecificPost(postId, threadId);
+
+      const duration = Date.now() - startTime;
+      trackEvent('ManualProcessor.ProcessSpecificPost',
+        { postId, threadId, statusCode: result.status?.toString() || '200' },
+        { durationMs: duration }
+      );
+      trackMetric('ManualProcessor.RequestTime', duration, { endpoint: 'processSpecific' });
+
+      transaction?.setStatus('ok');
+      return result;
     }
 
     // POST /api/process - Trigger manual discovery
     if (method === 'POST' && pathParts[pathParts.length - 1] === 'process') {
-      return await handleManualDiscovery();
+      const result = await handleManualDiscovery();
+
+      const duration = Date.now() - startTime;
+      trackEvent('ManualProcessor.ManualDiscovery', {}, { durationMs: duration });
+      trackMetric('ManualProcessor.RequestTime', duration, { endpoint: 'discovery' });
+
+      transaction?.setStatus('ok');
+      return result;
     }
 
     // Unknown endpoint
+    transaction?.setStatus('not_found');
+
+    const duration = Date.now() - startTime;
+    trackEvent('ManualProcessor.NotFound', { path: url.pathname }, { durationMs: duration });
+
     return {
       status: 404,
       jsonBody: {
@@ -67,7 +117,17 @@ async function manualProcessorHandler(
     };
   } catch (err) {
     const error = err as Error;
+
+    // Mark transaction as failed
+    transaction?.setStatus('internal_error');
+
     logger.logError('ManualProcessor failed', error);
+
+    // Track failure event
+    trackEvent('ManualProcessor.Failure', {
+      errorType: error.name,
+      errorMessage: error.message,
+    });
 
     return {
       status: 500,
@@ -76,6 +136,9 @@ async function manualProcessorHandler(
         message: error.message,
       },
     };
+  } finally {
+    // Finish Sentry transaction
+    transaction?.finish();
   }
 }
 
@@ -113,12 +176,15 @@ async function handleGetStatus(): Promise<HttpResponseInit> {
 async function handleManualDiscovery(): Promise<HttpResponseInit> {
   logger.info('Handling manual discovery request');
 
+  addBreadcrumb('Manual discovery initiated', 'operation', 'info');
+
   await ensureQueueExists(QUEUE_NAME);
 
   const batchSize = parseInt(getConfig('BATCH_SIZE', '10'), 10);
   const posts = await queryUnprocessedPosts(batchSize);
 
   if (posts.length === 0) {
+    trackMetric('ManualDiscovery.PostsEnqueued', 0);
     return {
       status: 200,
       jsonBody: {
@@ -166,6 +232,9 @@ async function handleManualDiscovery(): Promise<HttpResponseInit> {
   };
 
   logger.info('Manual discovery completed', response);
+
+  trackMetric('ManualDiscovery.PostsFound', posts.length);
+  trackMetric('ManualDiscovery.PostsEnqueued', enqueuedCount);
 
   return {
     status: 200,
