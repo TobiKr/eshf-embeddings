@@ -58,6 +58,7 @@ export function initializeSentry(): void {
       tracesSampleRate: environment === 'production' ? 0.1 : 1.0, // 10% in prod, 100% in dev
 
       // Profiling (if available)
+      /*
       profilesSampleRate: profilingIntegrations.length > 0
         ? (environment === 'production' ? 0.1 : 1.0)
         : 0,
@@ -71,6 +72,7 @@ export function initializeSentry(): void {
         }
         return event;
       },
+      */
 
       // Configure breadcrumbs
       maxBreadcrumbs: 50,
@@ -87,6 +89,7 @@ export function initializeSentry(): void {
 
     console.info('[Sentry] Error tracking initialized successfully');
     isInitialized = true;
+
   } catch (error) {
     console.error('[Sentry] Failed to initialize:', error);
     isInitialized = true;
@@ -264,7 +267,7 @@ export function startTransaction(
   if (!isSentryEnabled()) {
     return undefined;
   }
-
+  console.log("Starting Sentry transaction:", name, op);
   // Use startInactiveSpan to create a span we can manually control
   const span = Sentry.startInactiveSpan({
     name,
@@ -282,6 +285,7 @@ export function startTransaction(
     },
     finish: () => {
       span.end();
+      console.log("Finished Sentry transaction:", name);
     },
   };
 }

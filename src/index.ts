@@ -12,18 +12,19 @@ import { initializeTelemetry } from './lib/utils/telemetry';
 
 // Sentry should be initialized first to catch all errors
 initializeSentry();
-initializeTelemetry();
+//initializeTelemetry();
+
 
 // Import all function files to trigger their registration
 
 // Existing embedding pipeline functions
-import './postDiscovery';
-import './embeddingProcessor';
-import './pineconeUploader';
-import './manualProcessor';
+//import './postDiscovery';
+//import './embeddingProcessor';
+//import './pineconeUploader';
+//import './manualProcessor';
 
 // New chat/RAG functions
-import './chatApi';
+//import './chatApi';
 import './authApi';
 import './webServer';
-import './searchEndpoint';
+//import './searchEndpoint';
