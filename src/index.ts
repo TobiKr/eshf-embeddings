@@ -6,8 +6,12 @@
  * files causes their app.timer(), app.storageQueue(), etc. calls to register.
  */
 
-// Initialize Application Insights before anything else
+// Initialize error tracking and monitoring before anything else
+import { initializeSentry } from './lib/utils/sentry';
 import { initializeTelemetry } from './lib/utils/telemetry';
+
+// Sentry should be initialized first to catch all errors
+initializeSentry();
 initializeTelemetry();
 
 // Import all function files to trigger their registration

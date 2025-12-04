@@ -12,6 +12,7 @@ import { updateProcessedStatus } from './lib/cosmos/queries';
 import { EmbeddingResult } from './types/queue';
 import * as logger from './lib/utils/logger';
 import { trackEvent, trackMetric } from './lib/utils/telemetry';
+import { startTransaction, setTag, addBreadcrumb } from './lib/utils/sentry';
 
 const INPUT_QUEUE = 'embeddings-ready';
 
@@ -23,6 +24,11 @@ async function pineconeUploaderHandler(
   context: InvocationContext
 ): Promise<void> {
   const startTime = Date.now();
+
+  // Start Sentry transaction for performance monitoring
+  const transaction = startTransaction('pineconeUploader', 'queue.process');
+  setTag('function', 'pineconeUploader');
+  setTag('invocationId', context.invocationId);
 
   logger.info('PineconeUploader function triggered', {
     functionName: context.functionName,
@@ -43,6 +49,20 @@ async function pineconeUploaderHandler(
       dimensions: message.embedding.length,
       category: message.metadata.category,
     });
+
+    // Add Sentry context
+    setTag('postId', message.postId);
+    setTag('category', message.metadata.category || 'unknown');
+    addBreadcrumb(
+      `Uploading vector for post ${message.postId}`,
+      'upload',
+      'info',
+      {
+        postId: message.postId,
+        dimensions: message.embedding.length,
+        category: message.metadata.category,
+      }
+    );
 
     // Create Pinecone vector ID (use postId as vector ID)
     const vectorId = message.postId;
@@ -100,8 +120,14 @@ async function pineconeUploaderHandler(
     trackMetric('PineconeUploader.ProcessingTime', duration, {
       category: message.metadata.category || 'unknown',
     });
+
+    // Mark transaction as successful
+    transaction?.setStatus('ok');
   } catch (err) {
     const error = err as Error;
+
+    // Mark transaction as failed
+    transaction?.setStatus('internal_error');
 
     logger.logError('PineconeUploader failed', error, {
       functionName: context.functionName,
@@ -116,6 +142,9 @@ async function pineconeUploaderHandler(
     // Re-throw to trigger retry mechanism
     // After maxDequeueCount (5), message will move to poison queue
     throw error;
+  } finally {
+    // Finish Sentry transaction
+    transaction?.finish();
   }
 }
 

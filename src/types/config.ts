@@ -7,6 +7,11 @@ export interface EnvironmentConfig {
   FUNCTIONS_WORKER_RUNTIME: string;
   APPLICATIONINSIGHTS_CONNECTION_STRING?: string;
 
+  // Sentry Error Tracking
+  SENTRY_DSN?: string;
+  SENTRY_ENVIRONMENT?: string;
+  SENTRY_RELEASE?: string;
+
   // Cosmos DB
   COSMOS_ENDPOINT: string;
   COSMOS_KEY: string;
