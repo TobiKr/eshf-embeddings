@@ -248,14 +248,14 @@ export function setContext(key: string, context: Record<string, unknown> | null)
 }
 
 /**
- * Start a transaction for backward compatibility
- * Returns a simple object with setStatus and finish methods
+ * Start a transaction/span for performance monitoring
  *
- * In Sentry v8, transactions are managed differently. This provides a compatibility layer.
+ * In Sentry v10, this uses startInactiveSpan for manual control.
+ * Returns an object with setStatus and finish methods for compatibility.
  *
  * @param name - Transaction name
  * @param op - Operation type
- * @returns Transaction-like object
+ * @returns Transaction-like object with setStatus and finish methods
  */
 export function startTransaction(
   name: string,
@@ -265,16 +265,49 @@ export function startTransaction(
     return undefined;
   }
 
-  // In Sentry v8, we don't need to manually manage transactions
-  // They are automatically created and managed by the SDK
+  // Use startInactiveSpan to create a span we can manually control
+  const span = Sentry.startInactiveSpan({
+    name,
+    op,
+    forceTransaction: true, // Create a transaction instead of a child span
+  });
+
+  if (!span) {
+    return undefined;
+  }
+
   return {
     setStatus: (status: string) => {
-      // Status is handled automatically in v8
+      span.setStatus(mapStatusToSpanStatus(status));
     },
     finish: () => {
-      // Finishing is handled automatically in v8
+      span.end();
     },
   };
+}
+
+/**
+ * Map status strings to Sentry span status
+ */
+function mapStatusToSpanStatus(status: string): { code: 0 | 1 | 2; message?: string } {
+  // OpenTelemetry status codes: 0 = UNSET, 1 = OK, 2 = ERROR
+  switch (status.toLowerCase()) {
+    case 'ok':
+    case 'success':
+      return { code: 1 }; // OK
+    case 'internal_error':
+      return { code: 2, message: 'Internal error' }; // ERROR
+    case 'error':
+      return { code: 2, message: 'Error' }; // ERROR
+    case 'not_found':
+      return { code: 2, message: 'Not found' }; // ERROR
+    case 'permission_denied':
+      return { code: 2, message: 'Permission denied' }; // ERROR
+    case 'unauthenticated':
+      return { code: 2, message: 'Unauthenticated' }; // ERROR
+    default:
+      return { code: 0 }; // UNSET
+  }
 }
 
 /**
