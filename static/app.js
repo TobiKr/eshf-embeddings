@@ -298,8 +298,11 @@ function addSources(messageElement, sources) {
         meta.className = 'source-meta';
         meta.textContent = `${source.author} • ${source.date} • ${source.category} • Relevanz: ${source.relevance}%`;
 
-        const title = document.createElement('div');
+        const title = document.createElement('a');
         title.className = 'source-title';
+        title.href = source.permalink;
+        title.target = '_blank';
+        title.rel = 'noopener noreferrer';
         title.textContent = source.threadTitle;
 
         const excerpt = document.createElement('div');
@@ -308,6 +311,32 @@ function addSources(messageElement, sources) {
 
         sourceItem.appendChild(meta);
         sourceItem.appendChild(title);
+
+        // Add images if available
+        if (source.images && source.images.length > 0) {
+            const imagesContainer = document.createElement('div');
+            imagesContainer.className = 'source-images';
+
+            source.images.forEach((imageUrl) => {
+                const img = document.createElement('img');
+                img.src = imageUrl;
+                img.alt = 'Forum post image';
+                img.className = 'source-image-thumbnail';
+                img.loading = 'lazy';
+
+                // Make image clickable to open in new tab
+                const imgLink = document.createElement('a');
+                imgLink.href = imageUrl;
+                imgLink.target = '_blank';
+                imgLink.rel = 'noopener noreferrer';
+                imgLink.appendChild(img);
+
+                imagesContainer.appendChild(imgLink);
+            });
+
+            sourceItem.appendChild(imagesContainer);
+        }
+
         sourceItem.appendChild(excerpt);
 
         sourcesDiv.appendChild(sourceItem);

@@ -14,6 +14,8 @@ interface ForumChunk {
     postText?: string;
     contentPreview?: string;
     url?: string;
+    permalink?: string;
+    images?: string[];
   };
   score: number;
   rerankerScore?: number; // Semantic relevance score from reranker
@@ -43,12 +45,28 @@ export function formatContextFromChunks(chunks: ForumChunk[]): string {
       const relevanceScore = chunk.rerankerScore ?? chunk.score;
       const relevanceLabel = chunk.rerankerScore !== undefined ? 'Semantische Relevanz' : 'Relevanz';
 
-      return `[Quelle ${index + 1}]
-Autor: ${chunk.metadata.author}
-Datum: ${date}
-Kategorie: ${chunk.metadata.category}
-Thread: ${chunk.metadata.threadTitle}
-${relevanceLabel}: ${(relevanceScore * 100).toFixed(1)}%
+      // Build metadata header
+      const metadataLines = [
+        `[Quelle ${index + 1}]`,
+        `Autor: ${chunk.metadata.author}`,
+        `Datum: ${date}`,
+        `Kategorie: ${chunk.metadata.category}`,
+        `Thread: ${chunk.metadata.threadTitle}`,
+      ];
+
+      // Add permalink if available
+      if (chunk.metadata.permalink) {
+        metadataLines.push(`Link: ${chunk.metadata.permalink}`);
+      }
+
+      // Add images count if available
+      if (chunk.metadata.images && chunk.metadata.images.length > 0) {
+        metadataLines.push(`Bilder: ${chunk.metadata.images.length}`);
+      }
+
+      metadataLines.push(`${relevanceLabel}: ${(relevanceScore * 100).toFixed(1)}%`);
+
+      return `${metadataLines.join('\n')}
 
 ${text}
 ${'─'.repeat(80)}`;
@@ -108,6 +126,8 @@ export function formatSourcesForDisplay(chunks: ForumChunk[], maxSources = 5): a
       category: chunk.metadata.category,
       threadTitle: chunk.metadata.threadTitle,
       url: chunk.metadata.url || '#',
+      permalink: chunk.metadata.permalink || chunk.metadata.url || '#',
+      images: chunk.metadata.images || [],
       relevance: (relevanceScore * 100).toFixed(1),
       excerpt: (chunk.metadata.postText || chunk.metadata.contentPreview || '').substring(0, 200) + '...',
     };

@@ -259,12 +259,48 @@ body {
     font-weight: 600;
     color: #667eea;
     margin-bottom: 4px;
+    text-decoration: none;
+    display: inline-block;
+    transition: color 0.2s;
+}
+
+.source-title:hover {
+    color: #5568d3;
+    text-decoration: underline;
 }
 
 .source-excerpt {
     color: #666;
     font-size: 12px;
     font-style: italic;
+}
+
+/* Source Images */
+.source-images {
+    display: flex;
+    gap: 8px;
+    margin: 8px 0;
+    flex-wrap: wrap;
+}
+
+.source-images a {
+    display: block;
+    border-radius: 4px;
+    overflow: hidden;
+    transition: transform 0.2s;
+}
+
+.source-images a:hover {
+    transform: scale(1.05);
+}
+
+.source-image-thumbnail {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    display: block;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
 }
 
 /* Input Container */

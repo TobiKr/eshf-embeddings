@@ -5,6 +5,8 @@ export interface ForumPost {
   id: string;
   type: 'post' | 'reply';
   url: string;
+  permalink: string;
+  images: string[];
   threadId: string;
   threadSlug: string;
   category: string;
@@ -34,6 +36,8 @@ export interface PostMetadata {
   postId: string;
   type: string;
   url: string;
+  permalink: string;
+  images: string[];
   threadId: string;
   threadSlug: string;
   category: string;

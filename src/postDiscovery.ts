@@ -65,6 +65,8 @@ async function postDiscoveryHandler(
           postId: post.id,
           type: post.type,
           url: post.url,
+          permalink: post.permalink,
+          images: post.images,
           threadId: post.threadId,
           threadSlug: post.threadSlug,
           category: post.category,
