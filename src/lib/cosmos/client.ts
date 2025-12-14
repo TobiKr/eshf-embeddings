@@ -61,6 +61,39 @@ export function getContainer(): Container {
 }
 
 /**
+ * Gets a container by name (for multi-container support)
+ */
+export function getContainerByName(containerId: string): Container {
+  const db = getDatabase();
+  logger.debug('Getting container reference by name', { containerId });
+  return db.container(containerId);
+}
+
+/**
+ * Lists all containers in the database
+ * @returns Array of container IDs
+ */
+export async function listAllContainers(): Promise<string[]> {
+  try {
+    const db = getDatabase();
+    const { resources } = await db.containers.readAll().fetchAll();
+
+    const containerIds = resources.map(containerDef => containerDef.id);
+
+    logger.info('Listed all containers', {
+      count: containerIds.length,
+      containers: containerIds
+    });
+
+    return containerIds;
+  } catch (err) {
+    const error = err as Error;
+    logger.logError('Failed to list containers', error);
+    throw new DatabaseError('Failed to list containers', error);
+  }
+}
+
+/**
  * Tests the Cosmos DB connection
  */
 export async function testConnection(): Promise<boolean> {

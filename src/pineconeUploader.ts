@@ -81,7 +81,8 @@ async function pineconeUploaderHandler(
     await updateProcessedStatus(
       message.postId,
       message.metadata.threadId,
-      vectorId
+      vectorId,
+      message.metadata.containerId // Pass container ID for multi-container support
     );
 
     const duration = Date.now() - startTime;

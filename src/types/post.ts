@@ -22,6 +22,9 @@ export interface ForumPost {
   embeddingId?: string;
   lastEmbeddingUpdate?: string;
 
+  // Container tracking (for multi-container support)
+  containerId?: string;
+
   // Cosmos DB metadata
   _rid?: string;
   _self?: string;
@@ -46,4 +49,5 @@ export interface PostMetadata {
   timestamp: string;
   postNumber: number;
   isOriginalPost: boolean;
+  containerId?: string;
 }

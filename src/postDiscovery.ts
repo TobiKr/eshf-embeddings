@@ -75,6 +75,7 @@ async function postDiscoveryHandler(
           timestamp: post.timestamp,
           postNumber: post.postNumber,
           isOriginalPost: post.isOriginalPost,
+          containerId: post.containerId, // Include container ID for multi-container support
         };
 
         const queueMessage: PostQueueMessage = {
@@ -89,6 +90,7 @@ async function postDiscoveryHandler(
         logger.debug('Post enqueued', {
           postId: post.id,
           threadId: post.threadId,
+          containerId: post.containerId,
         });
       } catch (err) {
         errorCount++;
