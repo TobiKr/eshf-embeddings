@@ -22,6 +22,8 @@ const anthropic = new Anthropic({
 
 const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';
 const MAX_TOKENS = 40960;
+const MAX_RETRIES = 3;
+const INITIAL_RETRY_DELAY = 1000; // 1 second
 
 /**
  * Chat endpoint handler with streaming support
@@ -147,6 +149,17 @@ export async function chatApi(
 }
 
 /**
+ * Helper function to check if error is an overloaded error from Anthropic
+ */
+function isOverloadedError(error: any): boolean {
+  return (
+    error?.error?.error?.type === 'overloaded_error' ||
+    error?.status === 529 ||
+    error?.message?.includes('Overloaded')
+  );
+}
+
+/**
  * Streams Claude response as Server-Sent Events
  *
  * @param systemPrompt - System prompt with context
@@ -168,88 +181,117 @@ async function streamClaudeResponse(
   // Create readable stream
   const stream = new ReadableStream({
     async start(controller) {
-      try {
-        // Send start event
-        const startChunk: StreamChunk = { type: 'start' };
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(startChunk)}\n\n`)
-        );
+      let attempt = 0;
+      let success = false;
 
-        // Create Claude stream
-        const claudeStream = await anthropic.messages.stream({
-          model: CLAUDE_MODEL,
-          max_tokens: MAX_TOKENS,
-          system: systemPrompt,
-          messages: messages,
-        });
-
-        // Stream content chunks
-        for await (const event of claudeStream) {
-          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-            const contentChunk: StreamChunk = {
-              type: 'content',
-              text: event.delta.text,
-            };
+      while (attempt < MAX_RETRIES && !success) {
+        try {
+          // Send start event (only on first attempt)
+          if (attempt === 0) {
+            const startChunk: StreamChunk = { type: 'start' };
             controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify(contentChunk)}\n\n`)
+              encoder.encode(`data: ${JSON.stringify(startChunk)}\n\n`)
             );
           }
+
+          // Create Claude stream
+          const claudeStream = anthropic.messages.stream({
+            model: CLAUDE_MODEL,
+            max_tokens: MAX_TOKENS,
+            system: systemPrompt,
+            messages: messages,
+          });
+
+          // Stream content chunks
+          for await (const event of claudeStream) {
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              const contentChunk: StreamChunk = {
+                type: 'content',
+                text: event.delta.text,
+              };
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(contentChunk)}\n\n`)
+              );
+            }
+          }
+
+          // Wait for stream to complete
+          const finalMessage = await claudeStream.finalMessage();
+
+          const duration = Date.now() - startTime;
+
+          logger.info('Claude response completed', {
+            tokensUsed: finalMessage.usage.input_tokens + finalMessage.usage.output_tokens,
+            inputTokens: finalMessage.usage.input_tokens,
+            outputTokens: finalMessage.usage.output_tokens,
+            executionTime: duration,
+            retriesUsed: attempt,
+          });
+
+          // Send sources
+          const sources = formatSourcesForDisplay(chunks, 5);
+          const sourcesChunk: StreamChunk = {
+            type: 'sources',
+            sources: sources,
+          };
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(sourcesChunk)}\n\n`)
+          );
+
+          // Send done event
+          const doneChunk: StreamChunk = { type: 'done' };
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(doneChunk)}\n\n`)
+          );
+
+          controller.close();
+
+          // Mark transaction as successful
+          transaction?.setStatus('ok');
+          transaction?.finish();
+
+          success = true;
+        } catch (error: any) {
+          // Check if it's an overloaded error and we have retries left
+          if (isOverloadedError(error) && attempt < MAX_RETRIES - 1) {
+            const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt);
+            logger.warn('Claude API overloaded during streaming, retrying...', {
+              attempt: attempt + 1,
+              maxRetries: MAX_RETRIES,
+              delayMs: delay,
+              error: error.message,
+            });
+
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, delay));
+            attempt++;
+            continue;
+          }
+
+          // If it's not overloaded or we've exhausted retries, send error
+          logger.error('Error during streaming', { error, attemptsUsed: attempt + 1 });
+
+          // Track streaming error
+          captureException(error as Error, {
+            function: 'streamClaudeResponse',
+            phase: 'streaming',
+            attemptsUsed: attempt + 1,
+          });
+
+          const errorChunk: StreamChunk = {
+            type: 'error',
+            error: error instanceof Error ? error.message : 'Streaming error',
+          };
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`)
+          );
+          controller.close();
+
+          // Mark transaction as failed
+          transaction?.setStatus('internal_error');
+          transaction?.finish();
+          break;
         }
-
-        // Wait for stream to complete
-        const finalMessage = await claudeStream.finalMessage();
-
-        const duration = Date.now() - startTime;
-
-        logger.info('Claude response completed', {
-          tokensUsed: finalMessage.usage.input_tokens + finalMessage.usage.output_tokens,
-          inputTokens: finalMessage.usage.input_tokens,
-          outputTokens: finalMessage.usage.output_tokens,
-          executionTime: duration,
-        });
-
-        // Send sources
-        const sources = formatSourcesForDisplay(chunks, 5);
-        const sourcesChunk: StreamChunk = {
-          type: 'sources',
-          sources: sources,
-        };
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(sourcesChunk)}\n\n`)
-        );
-
-        // Send done event
-        const doneChunk: StreamChunk = { type: 'done' };
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(doneChunk)}\n\n`)
-        );
-
-        controller.close();
-
-        // Mark transaction as successful
-        transaction?.setStatus('ok');
-        transaction?.finish();
-      } catch (error) {
-        logger.error('Error during streaming', { error });
-
-        // Track streaming error
-        captureException(error as Error, {
-          function: 'streamClaudeResponse',
-          phase: 'streaming',
-        });
-
-        const errorChunk: StreamChunk = {
-          type: 'error',
-          error: error instanceof Error ? error.message : 'Streaming error',
-        };
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`)
-        );
-        controller.close();
-
-        // Mark transaction as failed
-        transaction?.setStatus('internal_error');
-        transaction?.finish();
       }
     },
   });
