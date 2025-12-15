@@ -87,7 +87,7 @@ async function postDiscoveryHandler(
         await enqueueMessage(QUEUE_NAME, queueMessage);
         enqueuedCount++;
 
-        logger.debug('Post enqueued', {
+        logger.debug('c', {
           postId: post.id,
           threadId: post.threadId,
           containerId: post.containerId,
@@ -128,8 +128,8 @@ async function postDiscoveryHandler(
 }
 
 // Register the timer-triggered function
-// Schedule: '0 */5 * * * *' = every 5 minutes
+// Schedule: '0 * * * * *' = every minute
 app.timer('postDiscovery', {
-  schedule: '0 */5 * * * *',
+  schedule: '0 * * * * *',
   handler: postDiscoveryHandler,
 });
