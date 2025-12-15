@@ -128,8 +128,8 @@ async function postDiscoveryHandler(
 }
 
 // Register the timer-triggered function
-// Schedule: '0 * * * * *' = every minute
+// Schedule: '0 */10 * * * *' = every 10 minutes
 app.timer('postDiscovery', {
-  schedule: '0 * * * * *',
+  schedule: '0 */10 * * * *',
   handler: postDiscoveryHandler,
 });
